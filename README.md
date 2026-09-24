@@ -55,18 +55,19 @@ La interfaz React/Vite inicial esta en [`_scaffold_base/app`](_scaffold_base/app
 | Contrato de oferta, allowlist y reparto proporcional | Implementado y con pruebas unitarias |
 | Eventos Soroban para indexacion | Implementado |
 | Dashboard React | Implementado con datos demo |
-| Transferencias reales de USDC Testnet mediante SAC | Siguiente hito |
+| Transferencias reales de USDC Testnet mediante SAC | Implementado y probado localmente |
 | Wallet, cliente generado y despliegue en Testnet | Siguiente hito |
 
-Por transparencia: `claim()` hoy liquida la contabilidad y emite el evento, pero aun **no** ejecuta una transferencia USDC. Esa integracion se incorporara conectando el Stellar Asset Contract (SAC) de USDC en Testnet antes de la demo final.
+Por transparencia: el contrato ahora cobra el activo SAC configurado al invertir, mantiene un fondo separado para distribuciones y `claim()` transfiere el monto proporcional. La direccion real del SAC USDC, la wallet y el despliegue Testnet aun deben configurarse antes de la demo final.
 
 ## Evidencia verificable
 
 Las pruebas cubren:
 
-1. Distribucion pro-rata 60/40 y reinicio del saldo tras `claim`.
-2. Rechazo de wallets no aprobadas.
-3. Rechazo de eventos de ingreso duplicados.
+1. Configuracion del SAC y precio unitario.
+2. Escrow del pago de la inversion en el contrato.
+3. Distribucion pro-rata 60/40, transferencia SAC y reinicio del saldo tras `claim`.
+4. Rechazo de wallets no aprobadas, eventos duplicados e ingresos no fondeados.
 
 Ejecutadas localmente con exito el 23 de septiembre de 2026:
 
@@ -111,20 +112,18 @@ Antes de la presentacion se publicaran aqui los identificadores verificables:
 | SAC USDC Testnet | `PENDIENTE_DE_CONFIGURACION` |
 | Wallet admin demo | `PENDIENTE_DE_FONDEO` |
 
-Una vez configurados el alias, la cuenta administradora y el SAC, el flujo de Scaffold para publicar/desplegar parte de:
+Una vez configurados el alias, la cuenta administradora y el SAC, copia `.env.example` a `.env`, completa las variables no secretas y ejecuta:
 
 ```powershell
 cd _scaffold_base
-stellar registry publish
-stellar registry deploy --deployed-name minka-market --published-name minka-market
+.\scripts\deploy-minka-testnet.ps1 -AdminAlias admin -UsdcSacId C... -UnitPrice 10000000 -TargetUnits 1000
 ```
 
 ## Roadmap inmediato
 
-1. Agregar el SAC de USDC Testnet al constructor y ejecutar cobro/reparto real.
-2. Generar cliente TypeScript y conectar wallet + llamadas del dashboard.
-3. Desplegar contrato y publicar IDs, transacciones y video demo verificables.
-4. Consumir eventos por Stellar RPC para actualizar posiciones en tiempo casi real.
+1. Generar cliente TypeScript y conectar wallet + llamadas del dashboard.
+2. Desplegar contrato y publicar IDs, transacciones y video demo verificables.
+3. Consumir eventos por Stellar RPC para actualizar posiciones en tiempo casi real.
 
 ## Estructura
 
