@@ -1,4 +1,5 @@
 import React from "react"
+import { minkaConfig } from "../lib/minkaConfig"
 import styles from "./Home.module.css"
 
 const metrics = [
@@ -23,7 +24,7 @@ const Home: React.FC = () => (
 				<h1>Capital para startups,<br />liquidado con cada venta.</h1>
 				<p>Minka Capital convierte ingresos verificables en retornos programables para inversionistas de startups peruanas.</p>
 			</div>
-			<aside><strong>Prototipo en Stellar Testnet</strong><span>No es una oferta de inversion.</span></aside>
+			<aside><strong>Prototipo en Stellar Testnet</strong><span>{minkaConfig.isContractConfigured ? "Contrato configurado para lectura on-chain." : "Contrato Testnet pendiente de configurar."}</span><span>No es una oferta de inversion.</span></aside>
 		</section>
 
 		<section className={styles.offer}>
@@ -37,7 +38,7 @@ const Home: React.FC = () => (
 			<article className={styles.panel}>
 				<p className={styles.eyebrow}>POSICION DEL INVERSOR</p><h2>Ana · wallet aprobada</h2>
 				<div className={styles.position}><div><span>Unidades LUMI-RSN</span><strong>60</strong></div><div><span>Saldo reclamable</span><strong>600 USDC</strong></div></div>
-				<button type="button">Claim USDC en Testnet</button>
+				<button type="button" disabled={!minkaConfig.isContractConfigured} title={minkaConfig.isContractConfigured ? "El claim se conectara al cliente generado de Minka." : "Configura PUBLIC_MINKA_MARKET_ID despues del despliegue Testnet."}>Claim USDC en Testnet</button>
 			</article>
 			<article className={styles.panel}>
 				<p className={styles.eyebrow}>TESORERIA Y ORACULO</p><h2>Estado operativo</h2>
