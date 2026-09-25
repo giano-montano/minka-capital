@@ -23,10 +23,11 @@ sequenceDiagram
     participant I as Inversionista aprobado
     participant D as Dashboard
 
-    A->>C: initialize(target_units)
+    A->>C: deploy + __constructor(admin, usdc, unit_price, target_units)
     A->>C: set_investor_status(wallet, true)
     I->>C: invest(units)
     C-->>D: InvestmentRecorded
+    A->>C: fund_distributions(amount)
     A->>C: record_revenue(event_id, amount)
     C-->>D: RevenueRecorded
     I->>C: claim()
@@ -39,11 +40,15 @@ Diagrama completo: [arquitectura y flujo](docs/architecture/minka-capital-system
 
 El contrato [`minka-market`](_scaffold_base/contracts/minka-market/src/lib.rs) se implementa en Rust con Soroban SDK y contiene:
 
-- Allowlist de wallets mediante `set_investor_status`.
+- Constructor atomico (`__constructor`): la oferta se configura en la misma transaccion del despliegue, sin ventana para que un tercero la inicialice.
+- Allowlist de wallets mediante `set_investor_status` y pausa de nuevas inversiones con `set_paused`.
 - Limite de unidades de la oferta y control de sobreasignacion.
+- Tesoreria segregada (`get_treasury`): capital levantado (`raised`), distribuciones fondeadas sin asignar (`available`) y distribuciones asignadas a inversionistas (`allocated`). Un mismo deposito no puede respaldar dos eventos de ingreso y los claims nunca usan capital de la oferta.
+- `withdraw_raise` libera el capital levantado a la wallet de la startup sin tocar fondos de distribucion.
 - Registro idempotente de ingresos por `event_id`.
-- Calculo proporcional con precision escalada y checkpoints por posicion.
-- Eventos Soroban: `OfferingCreated`, `InvestorStatusChanged`, `InvestmentRecorded`, `RevenueRecorded` y `ClaimRecorded`.
+- Calculo proporcional con precision escalada y checkpoints por posicion (un inversionista tardio no cobra ingresos previos). El redondeo de la division pro-rata deja un residuo minimo en `allocated`.
+- Extension de TTL del almacenamiento en cada operacion para que el estado no se archive durante la demo.
+- Eventos Soroban: `OfferingCreated`, `OfferingPauseChanged`, `InvestorStatusChanged`, `InvestmentRecorded`, `RaiseWithdrawn`, `DistributionFunded`, `RevenueRecorded` y `ClaimRecorded`.
 - Autorizacion de la wallet para invertir/reclamar y del administrador para operaciones privilegiadas.
 
 La interfaz React/Vite inicial esta en [`_scaffold_base/app`](_scaffold_base/app) y muestra el dashboard de la oferta, posicion, tesoreria y feed de eventos.
@@ -64,12 +69,15 @@ Por transparencia: el contrato ahora cobra el activo SAC configurado al invertir
 
 Las pruebas cubren:
 
-1. Configuracion del SAC y precio unitario.
+1. Configuracion del SAC, precio unitario y validacion del constructor.
 2. Escrow del pago de la inversion en el contrato.
 3. Distribucion pro-rata 60/40, transferencia SAC y reinicio del saldo tras `claim`.
-4. Rechazo de wallets no aprobadas, eventos duplicados e ingresos no fondeados.
+4. Checkpoints: un inversionista tardio no recibe ingresos anteriores.
+5. Tesoreria segregada: un deposito no respalda dos ingresos, los claims no usan capital y `withdraw_raise` no toca distribuciones.
+6. Pausa de la oferta sin bloquear claims.
+7. Rechazo de wallets no aprobadas, sobreasignacion, admin incorrecto, eventos duplicados, ingresos no fondeados y claims vacios.
 
-Ejecutadas localmente con exito el 23 de septiembre de 2026:
+Ejecutar:
 
 ```powershell
 cd _scaffold_base

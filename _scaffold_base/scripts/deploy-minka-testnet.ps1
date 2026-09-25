@@ -77,26 +77,22 @@ try {
         return
     }
 
+    # The constructor runs in the same transaction as the deployment, so the
+    # offering cannot be initialized by anyone else in between.
     $contractId = & $stellar contract deploy `
         --wasm $wasm `
         --source-account $AdminAlias `
         --network testnet `
-        --alias minka-market-testnet
+        --alias minka-market-testnet `
+        -- `
+        --admin $AdminAlias `
+        --usdc $UsdcSacId `
+        --unit_price $UnitPrice `
+        --target_units $TargetUnits
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($contractId)) {
         throw 'Contract deployment failed.'
     }
-    $contractId = $contractId.Trim()
-
-    & $stellar contract invoke `
-        --id $contractId `
-        --source-account $AdminAlias `
-        --network testnet `
-        -- initialize `
-        --admin $AdminAlias `
-        --usdc $UsdcSacId `
-        --unit-price $UnitPrice `
-        --target-units $TargetUnits
-    if ($LASTEXITCODE -ne 0) { throw 'Contract initialization failed.' }
+    $contractId = ($contractId | Select-Object -Last 1).Trim()
 
     Write-Output "Minka Market deployed to Stellar Testnet: $contractId"
     Write-Output "Set MINKA_MARKET_ID=$contractId before starting the dashboard."
