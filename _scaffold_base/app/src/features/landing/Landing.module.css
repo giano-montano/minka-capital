@@ -1,0 +1,558 @@
+/* Minka landing: dark "tech" base with an Andean textile palette.
+   cochineal red, Inca gold and jungle green over deep Andean indigo. */
+.landing {
+	--ink: #0b0918;
+	--ink-2: #14102a;
+	--line: rgba(255, 255, 255, 0.09);
+	--text: #f4eee6;
+	--muted: #a79fb8;
+	--cochineal: #ee295c;
+	--gold: #ffb733;
+	--jungle: #33d99a;
+	--display: "Space Grotesk", "Inter", system-ui, sans-serif;
+	--mono: "JetBrains Mono", "Inconsolata", ui-monospace, monospace;
+	/* Tocapu tile: stepped diamond + chakana-like cross. */
+	--tocapu: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='16' viewBox='0 0 32 16'%3E%3Crect width='32' height='16' fill='%2314102a'/%3E%3Cpath d='M7 2h2v2h2v2h2v4h-2v2H9v2H7v-2H5v-2H3V6h2V4h2z' fill='%23ffb733'/%3E%3Cpath d='M7 7h2v2H7z' fill='%2314102a'/%3E%3Cpath d='M22 4h4v2h2v4h-2v2h-4v-2h-2V6h2z' fill='%23ee295c'/%3E%3C/svg%3E");
+
+	min-height: 100vh;
+	background:
+		radial-gradient(
+			60rem 40rem at 85% -10%,
+			rgba(238, 41, 92, 0.16),
+			transparent 60%
+		),
+		radial-gradient(
+			50rem 35rem at -10% 30%,
+			rgba(255, 183, 51, 0.1),
+			transparent 60%
+		),
+		var(--ink);
+	color: var(--text);
+	font-family: "Inter", system-ui, sans-serif;
+	overflow-x: clip;
+}
+
+.landing h1,
+.landing h2,
+.landing h3 {
+	font-family: var(--display);
+	letter-spacing: -0.02em;
+	margin: 0;
+}
+
+.landing a {
+	color: inherit;
+}
+
+/* ---------- Nav ---------- */
+.nav {
+	position: sticky;
+	top: 0;
+	z-index: 10;
+	display: flex;
+	align-items: center;
+	gap: 2rem;
+	padding: 1rem clamp(1rem, 4vw, 3rem);
+	backdrop-filter: blur(14px);
+	background: rgba(11, 9, 24, 0.7);
+	border-bottom: 1px solid var(--line);
+}
+
+.brand {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	font-family: var(--display);
+	font-weight: 700;
+	font-size: 1.1rem;
+	text-decoration: none;
+}
+
+.navLinks {
+	display: flex;
+	gap: 1.5rem;
+	flex: 1;
+	font-size: 0.92rem;
+}
+
+.navLinks a {
+	color: var(--muted);
+	text-decoration: none;
+	transition: color 0.2s;
+}
+
+.navLinks a:hover {
+	color: var(--text);
+}
+
+.navCta,
+.primary,
+.secondary {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	border-radius: 999px;
+	font-weight: 600;
+	text-decoration: none;
+	transition:
+		transform 0.2s,
+		box-shadow 0.2s,
+		background 0.2s;
+}
+
+.navCta {
+	padding: 0.55rem 1.1rem;
+	font-size: 0.9rem;
+	border: 1px solid var(--line);
+	background: rgba(255, 255, 255, 0.04);
+}
+
+.primary {
+	padding: 0.9rem 1.6rem;
+	color: #1a0d05 !important;
+	background: linear-gradient(
+		120deg,
+		var(--gold),
+		#ff7a45 55%,
+		var(--cochineal)
+	);
+	box-shadow: 0 10px 40px -10px rgba(238, 41, 92, 0.7);
+}
+
+.secondary {
+	padding: 0.9rem 1.4rem;
+	border: 1px solid var(--line);
+	background: rgba(255, 255, 255, 0.03);
+}
+
+.navCta:hover,
+.primary:hover,
+.secondary:hover {
+	transform: translateY(-2px);
+}
+
+.primary:hover {
+	box-shadow: 0 16px 50px -10px rgba(238, 41, 92, 0.9);
+}
+
+/* ---------- Hero ---------- */
+.hero {
+	display: grid;
+	grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+	align-items: center;
+	gap: 2rem;
+	max-width: 1240px;
+	margin: 0 auto;
+	padding: clamp(2rem, 6vw, 5rem) clamp(1rem, 4vw, 3rem) 3rem;
+}
+
+.eyebrow {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.55rem;
+	margin: 0 0 1.2rem;
+	font-family: var(--mono);
+	font-size: 0.78rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--gold);
+}
+
+.dot,
+.dotLive {
+	width: 0.5rem;
+	height: 0.5rem;
+	border-radius: 50%;
+	background: var(--muted);
+}
+
+.dotLive {
+	background: var(--jungle);
+	box-shadow: 0 0 0 0 rgba(51, 217, 154, 0.7);
+	animation: pulse 1.8s infinite;
+}
+
+@keyframes pulse {
+	70% {
+		box-shadow: 0 0 0 0.6rem rgba(51, 217, 154, 0);
+	}
+	100% {
+		box-shadow: 0 0 0 0 rgba(51, 217, 154, 0);
+	}
+}
+
+.heroCopy h1 {
+	font-size: clamp(2.6rem, 6vw, 4.8rem);
+	line-height: 1;
+	font-weight: 700;
+}
+
+.heroCopy h1 em {
+	font-style: normal;
+	background: linear-gradient(100deg, var(--gold), var(--cochineal));
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+}
+
+.lede {
+	max-width: 36rem;
+	margin: 1.5rem 0 2rem;
+	font-size: 1.12rem;
+	line-height: 1.65;
+	color: var(--muted);
+}
+
+.lede strong {
+	color: var(--text);
+}
+
+.ctas {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.8rem;
+}
+
+.heroStats {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2rem;
+	margin: 2.5rem 0 0;
+	padding-top: 1.5rem;
+	border-top: 1px solid var(--line);
+}
+
+.heroStats dt {
+	font-size: 0.78rem;
+	color: var(--muted);
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+}
+
+.heroStats dd {
+	margin: 0.3rem 0 0;
+	font-family: var(--mono);
+	font-size: 1.35rem;
+	font-weight: 600;
+}
+
+.heroVisual {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+/* Tocapu-ringed halo behind the globe. */
+.heroVisual::before {
+	content: "";
+	position: absolute;
+	inset: 6%;
+	border-radius: 50%;
+	background: radial-gradient(circle, rgba(238, 41, 92, 0.25), transparent 65%);
+	filter: blur(30px);
+}
+
+.globeWrap {
+	position: relative;
+	width: min(100%, 560px);
+	aspect-ratio: 1;
+}
+
+.globe {
+	width: 100%;
+	height: 100%;
+	cursor: grab;
+	touch-action: pan-y;
+	opacity: 0;
+	transition: opacity 1.2s ease;
+}
+
+.globe:active {
+	cursor: grabbing;
+}
+
+.globeReady {
+	opacity: 1;
+}
+
+.cityLabel {
+	display: none;
+}
+
+@supports (anchor-name: --a) {
+	.cityLabel {
+		display: block;
+		position: absolute;
+		bottom: anchor(top);
+		left: anchor(center);
+		translate: -50% -0.5rem;
+		padding: 0.15rem 0.5rem;
+		border: 1px solid rgba(255, 183, 51, 0.4);
+		border-radius: 999px;
+		background: rgba(11, 9, 24, 0.75);
+		font-family: var(--mono);
+		font-size: 0.7rem;
+		white-space: nowrap;
+		pointer-events: none;
+		transition: opacity 0.3s;
+	}
+}
+
+.globeHint {
+	position: relative;
+	margin: 0.5rem 0 0;
+	font-family: var(--mono);
+	font-size: 0.75rem;
+	color: var(--muted);
+	letter-spacing: 0.08em;
+}
+
+/* ---------- Tocapu band ---------- */
+.tocapu {
+	height: 16px;
+	background: var(--tocapu) repeat-x;
+	opacity: 0.9;
+	mask-image: linear-gradient(
+		90deg,
+		transparent,
+		#000 15%,
+		#000 85%,
+		transparent
+	);
+}
+
+/* ---------- Sections ---------- */
+.section {
+	max-width: 1240px;
+	margin: 0 auto;
+	padding: clamp(3rem, 8vw, 6rem) clamp(1rem, 4vw, 3rem) 0;
+}
+
+.section h2 {
+	max-width: 44rem;
+	font-size: clamp(1.8rem, 3.6vw, 2.8rem);
+	line-height: 1.1;
+}
+
+.steps {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+	gap: 1rem;
+	margin: 2.5rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.steps li {
+	position: relative;
+	padding: 1.6rem;
+	border: 1px solid var(--line);
+	border-radius: 1.2rem;
+	background: linear-gradient(
+		180deg,
+		rgba(255, 255, 255, 0.05),
+		rgba(255, 255, 255, 0.01)
+	);
+	transition:
+		transform 0.25s,
+		border-color 0.25s;
+}
+
+.steps li:hover {
+	transform: translateY(-4px);
+	border-color: rgba(255, 183, 51, 0.45);
+}
+
+.steps h3 {
+	margin: 0.4rem 0 0.6rem;
+	font-size: 1.2rem;
+}
+
+.steps p {
+	margin: 0;
+	color: var(--muted);
+	line-height: 1.6;
+	font-size: 0.95rem;
+}
+
+.stepNum {
+	font-family: var(--mono);
+	font-size: 2rem;
+	font-weight: 700;
+	color: transparent;
+	-webkit-text-stroke: 1px var(--gold);
+}
+
+.stepRole {
+	display: block;
+	margin-top: 0.8rem;
+	font-family: var(--mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--cochineal);
+}
+
+/* ---------- Live ---------- */
+.liveGrid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+	gap: 1rem;
+	margin-top: 2.5rem;
+}
+
+.statGrid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 1rem;
+	margin: 0;
+}
+
+.statGrid > div {
+	padding: 1.4rem;
+	border: 1px solid var(--line);
+	border-radius: 1.2rem;
+	background: rgba(255, 255, 255, 0.03);
+}
+
+.statGrid dd {
+	margin: 0;
+	font-family: var(--mono);
+	font-size: clamp(1.3rem, 2.4vw, 1.9rem);
+	font-weight: 700;
+	color: var(--gold);
+}
+
+.statGrid dt {
+	margin-top: 0.4rem;
+	font-size: 0.85rem;
+	color: var(--muted);
+}
+
+.ticker {
+	margin: 0;
+	padding: 0.5rem 1.2rem;
+	list-style: none;
+	border: 1px solid var(--line);
+	border-radius: 1.2rem;
+	background: var(--ink-2);
+	font-family: var(--mono);
+	font-size: 0.82rem;
+}
+
+.ticker li {
+	display: flex;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.85rem 0;
+	border-bottom: 1px dashed var(--line);
+	animation: slideIn 0.5s ease both;
+}
+
+.ticker li:last-child {
+	border-bottom: 0;
+}
+
+.ticker a {
+	color: var(--jungle);
+	text-decoration: none;
+	white-space: nowrap;
+}
+
+@keyframes slideIn {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+}
+
+/* ---------- Why Stellar ---------- */
+.why {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 1rem;
+	margin: 2.5rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.why li {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	padding: 1.4rem 0;
+	border-top: 2px solid var(--cochineal);
+}
+
+.why strong {
+	font-family: var(--display);
+	font-size: 2.4rem;
+}
+
+.why span {
+	color: var(--muted);
+	line-height: 1.5;
+}
+
+/* ---------- Final CTA + footer ---------- */
+.finalCta {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 1rem;
+	max-width: 1240px;
+	margin: clamp(3rem, 8vw, 6rem) auto 0;
+	padding: 4rem clamp(1rem, 4vw, 3rem);
+	text-align: center;
+	border-top: 1px solid var(--line);
+}
+
+.finalCta h2 {
+	font-size: clamp(2rem, 4.5vw, 3.4rem);
+}
+
+.finalCta p {
+	margin: 0 0 0.8rem;
+	color: var(--muted);
+}
+
+.footer p {
+	max-width: 52rem;
+	margin: 0 auto;
+	padding: 1.5rem clamp(1rem, 4vw, 3rem) 2.5rem;
+	text-align: center;
+	font-size: 0.8rem;
+	color: var(--muted);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+	.hero,
+	.liveGrid {
+		grid-template-columns: 1fr;
+	}
+
+	.heroVisual {
+		order: -1;
+	}
+
+	.globeWrap {
+		width: min(100%, 420px);
+	}
+
+	.navLinks {
+		display: none;
+	}
+
+	.nav {
+		justify-content: space-between;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.dotLive,
+	.ticker li {
+		animation: none;
+	}
+}

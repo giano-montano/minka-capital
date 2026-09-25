@@ -4,12 +4,14 @@ import styles from "./App.module.css"
 import ConnectAccount from "./components/ConnectAccount"
 import Debug from "./pages/Debug"
 import Home from "./pages/Home"
+import Landing from "./pages/Landing"
 
 function App() {
 	return (
 		<Routes>
+			<Route path="/" element={<Landing />} />
 			<Route element={<AppLayout />}>
-				<Route path="/" element={<Home />} />
+				<Route path="/app" element={<Home />} />
 				<Route path="/debug" element={<Debug />} />
 				<Route path="/debug/:contractName" element={<Debug />} />
 			</Route>
@@ -24,6 +26,12 @@ const AppLayout = () => (
 				Minka Capital
 			</NavLink>
 			<nav className={styles.headerNav}>
+				<NavLink
+					to="/app"
+					className={({ isActive }) => (isActive ? styles.active : "")}
+				>
+					Dashboard
+				</NavLink>
 				<NavLink
 					to="/debug"
 					className={({ isActive }) => (isActive ? styles.active : "")}

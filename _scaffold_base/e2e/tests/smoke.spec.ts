@@ -6,23 +6,23 @@ import { test, expect } from "@playwright/test"
 // features and broken imports — no chain or wallet interaction required.
 
 test("home page mounts", async ({ page }) => {
-	const response = await page.goto("/")
+	const response = await page.goto("/app")
 	expect(response?.ok()).toBeTruthy()
 	await expect(page.locator("body")).toBeVisible()
 })
 
 test("wallet connect button is present", async ({ page }) => {
-	await page.goto("/")
+	await page.goto("/app")
 	await expect(page.getByRole("button", { name: /connect/i })).toBeVisible()
 })
 
 test("contract explorer link is present", async ({ page }) => {
-	await page.goto("/")
+	await page.goto("/app")
 	await expect(page.locator('a[href="/debug"]').first()).toBeVisible()
 })
 
 test("testnet-only disclaimer is visible", async ({ page }) => {
-	await page.goto("/")
+	await page.goto("/app")
 	await expect(
 		page.getByText("Prototipo en Stellar Testnet").first(),
 	).toBeVisible()
@@ -32,8 +32,16 @@ test("testnet-only disclaimer is visible", async ({ page }) => {
 })
 
 test("Minka offering dashboard is present", async ({ page }) => {
-	await page.goto("/")
+	await page.goto("/app")
 	await expect(
 		page.getByRole("heading", { name: /Capital para startups/ }),
 	).toBeVisible()
+})
+
+test("landing page links to the dashboard", async ({ page }) => {
+	await page.goto("/")
+	await expect(
+		page.getByRole("heading", { name: /Capital en minka/ }),
+	).toBeVisible()
+	await expect(page.locator('a[href="/app"]').first()).toBeVisible()
 })

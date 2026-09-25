@@ -2,7 +2,7 @@
 
 > Mercado primario simulado para notas de participacion en ingresos de startups peruanas, construido sobre Stellar/Soroban.
 
-**Demo en vivo:** https://minka-capital.a20212540.workers.dev (Cloudflare Workers, Stellar Testnet; usa Freighter en Testnet).
+**Demo en vivo:** https://minka-capital.a20212540.workers.dev (landing) y [`/app`](https://minka-capital.a20212540.workers.dev/app) (dashboard). Cloudflare Workers, Stellar Testnet; usa Freighter en Testnet.
 
 **Minka Capital es un prototipo exclusivamente para Stellar Testnet.** Usa empresas, activos y montos ficticios; no constituye una oferta de valores, recomendacion de inversion, servicio de custodia ni producto para dinero real.
 
@@ -212,7 +212,7 @@ Despues, Minka aprueba a la empresa y a los inversionistas desde su consola en e
 Pensado para el video de dos minutos sobre el contrato oficial, donde la demo por CLI ya dejo historial en el feed y **8 USDC reclamables para Luis**, para mostrar un claim en vivo.
 
 1. **Preparar Freighter en Testnet.** Importa las identidades demo que vayas a usar. En la maquina que ejecuto el script, `stellar keys secret luis` imprime la clave de Luis; pegala directamente en Freighter (*Import wallet*) y no la compartas por chat. Repite con `lumisolar` y `minka-admin` si vas a mostrar sus consolas.
-2. **Presentar el catalogo** (sin wallet): `LUMI-RSN` con 10 de 1000 unidades vendidas, 100 USDC levantados, y el feed con despliegue, aprobaciones, inversiones, ingreso y claim, cada uno con su hash.
+2. **Abrir con la landing** (`/`): el globo de Peru y las metricas en vivo leidas del contrato. Luego **presentar el catalogo** en `/app` (sin wallet): `LUMI-RSN` con 10 de 1000 unidades vendidas, 100 USDC levantados, y el feed con despliegue, aprobaciones, inversiones, ingreso y claim, cada uno con su hash.
 3. **Claim en vivo como Luis:** conecta su wallet, el panel del inversionista muestra 4 unidades y 8 USDC reclamables; pulsa *Claim USDC en Testnet*. El evento `Claim` aparece en el feed en segundos (track Realtime).
 4. **Nuevo ingreso como LumiSolar:** en la consola de empresa emisora, fondea distribuciones y pulsa *Registrar ingreso* (el dashboard genera un `event_id` unico). LumiSolar necesita USDC: puede sacar parte del capital levantado con *Retirar capital*, o pedirlo al faucet de Circle (faucet.circle.com). El saldo reclamable de Ana y Luis sube en vivo.
 5. **Reglas on-chain:** en la consola de LumiSolar, `LUMI-RSN` aparece como *precio fijo* porque ya tiene ventas: el precio no se puede editar y las unidades solo pueden crecer (el contrato lo impone con `OfferingLocked`). Ampliar las unidades si funciona. El rechazo de `event_id` duplicados esta cubierto por las pruebas del contrato.
@@ -234,7 +234,7 @@ docs/archive/                 Planes originales (historico)
 _scaffold_base/
   scripts/                    Demo Testnet (bash) y despliegue (PowerShell)
   contracts/minka-market/     Contrato Soroban y pruebas
-  app/                        Dashboard React/Vite
+  app/                        Landing (/) y dashboard (/app) en React/Vite
   app-lib/                    Utilidades y clientes de Stellar Scaffold
 ```
 

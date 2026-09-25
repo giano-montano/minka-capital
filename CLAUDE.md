@@ -1,5 +1,10 @@
 # CLAUDE.md — Minka Capital (Stellar hackathon)
 
+> **ANTES DE HACER NADA:** lee los archivos de `handoffs/` que no tengan su
+> sección "Estado" marcada, empezando por `handoffs/2026-09-25-giano-a-leo.md`,
+> y ejecuta su checklist. Contiene acciones pendientes indispensables
+> (redeploy de Cloudflare con el contrato nuevo).
+
 Guía de traspaso para cualquier sesión de Claude Code (o persona) que continúe el
 proyecto. Léela entera antes de tocar código. Estado al 25 de septiembre de 2026 (actualizada tras el redespliegue con demo completa).
 
@@ -15,7 +20,7 @@ oferta de inversión (el disclaimer debe seguir visible en la UI).
 
 | Qué | Dónde |
 | --- | --- |
-| Dashboard desplegado (Cloudflare Workers) | **https://minka-capital.a20212540.workers.dev** (cuenta Cloudflare de Leo; redeploy con `npm run deploy` desde `_scaffold_base/app`) |
+| Sitio desplegado (Cloudflare Workers) | **https://minka-capital.a20212540.workers.dev**: landing en `/`, dashboard en `/app` (cuenta Cloudflare de Leo; redeploy con `npm run deploy` desde `_scaffold_base/app`) |
 | Contrato `minka-market` (Testnet, oficial) | [`CDQ7YOMBZVPI3QPC7NTKHKQ57MKYFWSEJJBKC5KVGHQU3X6BZ5MQXWZ5`](https://stellar.expert/explorer/testnet/contract/CDQ7YOMBZVPI3QPC7NTKHKQ57MKYFWSEJJBKC5KVGHQU3X6BZ5MQXWZ5), desplegado en el ledger 4870111 con la demo completa ejecutada |
 | Contrato anterior (Leo) | [`CD4QCMLVUWY74ZDGCQCHIYNJ6BJRXSOEJHURJKQH6YLBFDMZIK3K2WI7`](https://stellar.expert/explorer/testnet/contract/CD4QCMLVUWY74ZDGCQCHIYNJ6BJRXSOEJHURJKQH6YLBFDMZIK3K2WI7), ya no se usa; ahí queda la oferta `DSC` de Leo |
 | SAC USDC Testnet (Circle) | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` (emisor `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`) |
@@ -23,8 +28,6 @@ oferta de inversión (el disclaimer debe seguir visible en la UI).
 
 ## Roles y wallets demo (solo direcciones públicas)
 
-| Rol | Dirección | Notas |
-| --- | --- | --- |
 Contrato oficial `CDQ7…`:
 
 | Rol | Dirección | Notas |
@@ -48,7 +51,9 @@ Freighter con `stellar keys secret <identidad>`, ejecutado por el dueño).
 README.md, docs/                       Propuesta, arquitectura, evidencia
 _scaffold_base/contracts/minka-market/ Contrato Soroban (lib.rs) + 27 tests (test.rs)
 _scaffold_base/app/                    Dashboard React/Vite
-  src/features/market/                 Todo el código de Minka en la UI
+  src/pages/Landing.tsx                Landing en `/` (el dashboard vive en `/app`)
+  src/features/landing/                Globo WebGL de Perú (cobe), chakana y estilos de la landing
+  src/features/market/                 Todo el código del dashboard de Minka
     contract.ts        Cliente (contract.Client.from, sin bindings), lecturas, errores
     useMarket.ts       Hooks react-query + useMarketAction (firma y envío)
     useMarketEvents.ts Feed en vivo: getEvents del RPC con cursor
@@ -59,6 +64,7 @@ _scaffold_base/app/                    Dashboard React/Vite
 _scaffold_base/scripts/demo-minka-testnet.sh    Demo completa en Testnet (bash): identidades, USDC, deploy y pasos 1-6
 _scaffold_base/scripts/deploy-minka-testnet.ps1  Despliegue del contrato (Windows)
 docs/archive/                                    Planes originales (histórico, checkboxes sin marcar)
+handoffs/                                        Traspasos entre miembros del equipo (leer los pendientes primero)
 ```
 
 ## API del contrato (resumen)
@@ -140,7 +146,7 @@ docker run --rm -v "C:/Users/<usuario>/.config/stellar:/config" stellar/stellar-
    el botón "Fund Account" (solo da XLM de Friendbot, no USDC).
 4. **Tests de frontend** (Vitest + Testing Library): disclaimer visible, estado
    vacío del feed, reglas de bloqueo de precio en `IssuerPanel`.
-5. **Video demo de 2 minutos** siguiendo el "Guion de la demo en el dashboard" del README.
+5. **Video demo de 2 minutos** siguiendo el "Guion de la demo en el dashboard" del README; abrir con la landing.
 6. **Pull request `dev-leo` → `main`** cuando todo lo anterior esté verde.
 7. Opcional: recuperar los 30 USDC que quedaron en el contrato viejo de una sola
    oferta (`CDEJ6W6K…DMFMM`): claims de Ana (6) y Luis (4) y `withdraw_raise` del admin (20).
