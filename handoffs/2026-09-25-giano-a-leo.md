@@ -80,7 +80,7 @@ Los smoke tests de Playwright (`e2e/tests/smoke.spec.ts`) se actualizaron a `/ap
 
 ## Pendiente después del checklist
 
-1. **Video de 2 minutos**: seguir el "Guion de la demo en el dashboard" del README; abrir con la landing (globo + stats en vivo) y terminar con el claim en vivo de Luis.
+1. **Video de 2 minutos**: guion hablado en `docs/pitch.md` e instructivo de grabación en `docs/video-demo.md` (Giano lo graba con OBS). `scripts/demo-minka-testnet.sh` ahora escribe `app/.env.local` y deja 20 USDC extra en LumiSolar para registrar un ingreso en vivo.
 2. **Limpiar el scaffold**: borrar `contracts/guess-the-number`, `nft-enumerable`, `fungible-allowlist` y sus entradas en `environments.toml`; ocultar o renombrar "Fund Account" (solo da XLM).
 3. **Tests de frontend** (Vitest + Testing Library).
 4. **PR `dev-leo` → `main`** cuando todo esté verde.

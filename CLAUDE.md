@@ -63,6 +63,7 @@ _scaffold_base/app/                    Dashboard React/Vite
   wrangler.jsonc       Config de Cloudflare Workers (assets + SPA fallback)
 _scaffold_base/scripts/demo-minka-testnet.sh    Demo completa en Testnet (bash): identidades, USDC, deploy y pasos 1-6
 _scaffold_base/scripts/deploy-minka-testnet.ps1  Despliegue del contrato (Windows)
+docs/pitch.md, docs/video-demo.md               Guion del pitch (2 min) e instructivo de grabación
 docs/archive/                                    Planes originales (histórico, checkboxes sin marcar)
 handoffs/                                        Traspasos entre miembros del equipo (leer los pendientes primero)
 ```
@@ -146,7 +147,7 @@ docker run --rm -v "C:/Users/<usuario>/.config/stellar:/config" stellar/stellar-
    el botón "Fund Account" (solo da XLM de Friendbot, no USDC).
 4. **Tests de frontend** (Vitest + Testing Library): disclaimer visible, estado
    vacío del feed, reglas de bloqueo de precio en `IssuerPanel`.
-5. **Video demo de 2 minutos** siguiendo el "Guion de la demo en el dashboard" del README; abrir con la landing.
+5. **Video demo de 2 minutos**: `docs/pitch.md` (guion) y `docs/video-demo.md` (cómo prepararlo y grabarlo con OBS en cualquier máquina).
 6. **Pull request `dev-leo` → `main`** cuando todo lo anterior esté verde.
 7. Opcional: recuperar los 30 USDC que quedaron en el contrato viejo de una sola
    oferta (`CDEJ6W6K…DMFMM`): claims de Ana (6) y Luis (4) y `withdraw_raise` del admin (20).

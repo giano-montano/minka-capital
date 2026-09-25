@@ -187,7 +187,7 @@ Versiones anteriores: multi-oferta sin demo completa [`CD4QCMLV…K2WI7`](https:
 
 ### Reproducir el despliegue
 
-**Linux / macOS (demo completa en un comando).** Crea las cuatro identidades con friendbot, compra USDC de Circle en el DEX de Testnet (XLM -> USDC), despliega el contrato y ejecuta los pasos 1-6. Los hashes quedan en `demo-testnet.log`:
+**Linux / macOS / WSL (demo completa en un comando).** Crea las cuatro identidades con friendbot, compra USDC de Circle en el DEX de Testnet (XLM -> USDC), despliega el contrato y ejecuta los pasos 1-6. Los hashes quedan en `demo-testnet.log` y el dashboard local queda configurado en `app/.env.local`:
 
 ```bash
 cd _scaffold_base
@@ -206,6 +206,11 @@ cd _scaffold_base
 ```
 
 Despues, Minka aprueba a la empresa y a los inversionistas desde su consola en el dashboard (o con `set_issuer_status` / `set_investor_status`), y la empresa publica su oferta desde la consola de emisora. Copia `app/.env.example` a `app/.env` y completa `PUBLIC_MINKA_MARKET_ID`, `PUBLIC_USDC_SAC_ID` y `PUBLIC_MINKA_START_LEDGER`.
+
+## Pitch y video
+
+- [Guion del pitch de 2 minutos](docs/pitch.md): problema, solución y visión, con preguntas probables del jurado.
+- [Instructivo para grabar el video](docs/video-demo.md): de un clon limpio a la grabación con OBS, en cualquier máquina.
 
 ## Guion de la demo en el dashboard
 
@@ -230,6 +235,8 @@ Stellar RPC conserva unos 7 dias de eventos. Despues de ese plazo el feed muestr
 ```text
 docs/architecture/            Arquitectura y flujo del sistema
 docs/specs/                   Especificacion del MVP
+docs/pitch.md                 Guion del pitch (2 min)
+docs/video-demo.md            Instructivo para grabar el video demo
 docs/archive/                 Planes originales (historico)
 _scaffold_base/
   scripts/                    Demo Testnet (bash) y despliegue (PowerShell)
