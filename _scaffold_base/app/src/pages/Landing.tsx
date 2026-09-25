@@ -136,7 +136,9 @@ export default function Landing() {
 				</div>
 				<div className={styles.heroVisual}>
 					<PeruGlobe />
-					<p className={styles.globeHint}>Arrastra el globo · Perú on-chain</p>
+					<p className={styles.globeHint}>
+						Arrastra para explorar · usa + / − para acercar
+					</p>
 				</div>
 			</section>
 

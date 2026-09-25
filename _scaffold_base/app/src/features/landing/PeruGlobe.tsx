@@ -25,7 +25,7 @@ const JUNGLE: [number, number, number] = [0.2, 0.85, 0.6]
 const MARKERS: Marker[] = CITIES.map((city, i) => ({
 	id: city.id,
 	location: city.location,
-	size: city.id === "lima" ? 0.09 : 0.05,
+	size: city.id === "lima" ? 0.035 : 0.022,
 	color: city.id === "lima" ? COCHINEAL : i % 2 ? INCA_GOLD : JUNGLE,
 }))
 
@@ -35,9 +35,15 @@ const ARCS: Arc[] = CITIES.slice(1).map((city) => ({
 	to: city.location,
 }))
 
-// cobe's angles that put a lat/lon in front of the camera.
+// cobe's angles that put a lat/lon in front of the camera (Peru ≈ -10°, -75°).
 const PERU_PHI = Math.PI - ((-75 * Math.PI) / 180 - Math.PI / 2)
-const PERU_THETA = 0.15
+const PERU_THETA = (-10 * Math.PI) / 180
+
+// Close-up on Peru by default; the +/- buttons zoom between these bounds.
+const ZOOM_DEFAULT = 3
+const ZOOM_MIN = 1.1
+const ZOOM_MAX = 5
+const ZOOM_STEP = 0.8
 
 /**
  * WebGL globe (cobe) that rests on Peru. Drag to spin it; on release it eases
@@ -46,6 +52,13 @@ const PERU_THETA = 0.15
  */
 export function PeruGlobe() {
 	const canvasRef = useRef<HTMLCanvasElement>(null)
+	const zoomRef = useRef(ZOOM_DEFAULT)
+	const zoomBy = (delta: number) => {
+		zoomRef.current = Math.min(
+			ZOOM_MAX,
+			Math.max(ZOOM_MIN, zoomRef.current + delta),
+		)
+	}
 
 	useEffect(() => {
 		const canvas = canvasRef.current
@@ -58,6 +71,7 @@ export function PeruGlobe() {
 		let phi = PERU_PHI + 1.2 // start away from Peru and sweep in
 		let theta = PERU_THETA
 		let drag: { x: number; y: number; phi: number; theta: number } | null = null
+		let scale = 1 // starts as a whole planet and dives into Peru
 		let time = 0
 		let frame = 0
 
@@ -69,7 +83,7 @@ export function PeruGlobe() {
 			theta,
 			dark: 1,
 			diffuse: 1.4,
-			mapSamples: 20000,
+			mapSamples: 60000,
 			mapBrightness: 7,
 			mapBaseBrightness: 0.02,
 			baseColor: [0.16, 0.13, 0.3],
@@ -78,21 +92,28 @@ export function PeruGlobe() {
 			markers: MARKERS,
 			arcs: ARCS,
 			arcColor: INCA_GOLD,
-			arcWidth: 0.6,
-			arcHeight: 0.25,
+			arcWidth: 0.4,
+			arcHeight: 0.08,
 			markerElevation: 0.02,
-			scale: 1.05,
+			scale,
 		})
 
 		const loop = () => {
 			time += 1
 			if (!drag) {
 				// Ease back to Peru with a gentle sway so it never looks frozen.
-				const sway = reduceMotion ? 0 : Math.sin(time / 140) * 0.18
+				const sway = reduceMotion ? 0 : Math.sin(time / 140) * (0.18 / scale)
 				phi += (PERU_PHI + sway - phi) * 0.035
 				theta += (PERU_THETA - theta) * 0.05
 			}
-			globe.update({ phi, theta, width: width * 2, height: width * 2 })
+			scale += (zoomRef.current - scale) * 0.04
+			globe.update({
+				phi,
+				theta,
+				scale,
+				width: width * 2,
+				height: width * 2,
+			})
 			frame = requestAnimationFrame(loop)
 		}
 		frame = requestAnimationFrame(loop)
@@ -103,10 +124,10 @@ export function PeruGlobe() {
 		}
 		const onMove = (e: PointerEvent) => {
 			if (!drag) return
-			phi = drag.phi + (e.clientX - drag.x) / 160
+			phi = drag.phi + (e.clientX - drag.x) / (160 * scale)
 			theta = Math.max(
 				-0.8,
-				Math.min(0.8, drag.theta + (e.clientY - drag.y) / 300),
+				Math.min(0.8, drag.theta + (e.clientY - drag.y) / (300 * scale)),
 			)
 		}
 		const onUp = () => {
@@ -155,6 +176,22 @@ export function PeruGlobe() {
 					{city.name}
 				</span>
 			))}
+			<div className={styles.zoomControls}>
+				<button
+					type="button"
+					onClick={() => zoomBy(ZOOM_STEP)}
+					aria-label="Acercar"
+				>
+					+
+				</button>
+				<button
+					type="button"
+					onClick={() => zoomBy(-ZOOM_STEP)}
+					aria-label="Alejar"
+				>
+					−
+				</button>
+			</div>
 		</div>
 	)
 }

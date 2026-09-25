@@ -29,7 +29,7 @@ Luego, en **https://minka-capital.a20212540.workers.dev**:
 - [ ] `/app` carga el dashboard con `LUMI-RSN` (10/1000 unidades) y el feed completo.
 - [ ] Recargar directamente `/app` funciona (fallback SPA de `wrangler.jsonc`).
 - [ ] Con Freighter en Testnet y tu wallet de empresa, la consola de emisora aparece; republica `DSC` si la quieres en la demo.
-- [ ] Probar en celular: el globo se arrastra con el dedo y la página no se desborda horizontalmente.
+- [ ] Probar en celular: el globo se arrastra con el dedo, los botones +/− hacen zoom y la página no se desborda horizontalmente.
 
 Si algo falla, no cambies de contrato: avisa a Giano.
 
@@ -63,7 +63,7 @@ Si algo falla, no cambies de contrato: avisa a Giano.
 ### Landing (`/`)
 
 - Archivos: `app/src/pages/Landing.tsx`, `app/src/features/landing/{PeruGlobe.tsx,Chakana.tsx,Landing.module.css}`.
-- **Hero:** globo WebGL con [`cobe`](https://github.com/shuding/cobe) centrado en Perú, con marcadores en Lima, Cusco, Arequipa, Trujillo, Iquitos, Piura y Puno y arcos desde Lima. Se arrastra con mouse o dedo y vuelve solo a Perú. Las etiquetas de ciudades usan CSS anchor positioning (Chrome/Edge/Safari recientes); en Firefox simplemente no aparecen, sin romper nada.
+- **Hero:** globo WebGL con [`cobe`](https://github.com/shuding/cobe) centrado en Perú, con marcadores en Lima, Cusco, Arequipa, Trujillo, Iquitos, Piura y Puno y arcos desde Lima. Arranca como planeta completo y hace zoom hasta un primer plano de Perú (escala 3); se explora arrastrando con mouse o dedo, tiene botones +/− de zoom (1.1 a 5) y vuelve solo a Perú al soltar. Las etiquetas de ciudades usan CSS anchor positioning (Chrome/Edge/Safari recientes); en Firefox simplemente no aparecen, sin romper nada.
 - **Identidad:** chakana como logo, franjas de tocapu (patrón textil inca) como separadores, paleta cochinilla `#ee295c` / oro inca `#ffb733` / verde selva `#33d99a` sobre índigo `#0b0918`. Tipografías Space Grotesk + JetBrains Mono (Google Fonts en `index.html`).
 - **Datos en vivo:** reutiliza `useMarketSnapshot` y `useMarketEvents`: ofertas, capital levantado, retornos distribuidos, inversionistas y un ticker de eventos con link a cada tx.
 - Respeta `prefers-reduced-motion`.
