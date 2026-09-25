@@ -2,6 +2,8 @@
 
 > Mercado primario simulado para notas de participacion en ingresos de startups peruanas, construido sobre Stellar/Soroban.
 
+**Demo en vivo:** https://minka-capital.a20212540.workers.dev (Cloudflare Workers, Stellar Testnet; usa Freighter en Testnet).
+
 **Minka Capital es un prototipo exclusivamente para Stellar Testnet.** Usa empresas, activos y montos ficticios; no constituye una oferta de valores, recomendacion de inversion, servicio de custodia ni producto para dinero real.
 
 ## Problema
@@ -129,6 +131,14 @@ npm install
 copy app\.env.example app\.env   # completar PUBLIC_MINKA_MARKET_ID, PUBLIC_USDC_SAC_ID, PUBLIC_MINKA_START_LEDGER
 cd app
 npx vite
+```
+
+Despliegue del dashboard en Cloudflare Workers (sitio estatico con fallback SPA, configurado en `app/wrangler.jsonc` y `app/.env.production`):
+
+```powershell
+cd _scaffold_base\app
+npx wrangler login   # una sola vez
+npm run deploy
 ```
 
 `npm run dev` tambien lanza `stellar scaffold watch` para una red local; para usar el contrato de Testnet basta con Vite.
