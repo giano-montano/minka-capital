@@ -31,21 +31,25 @@ export function AdminPanel({ snapshot }: { snapshot: MarketSnapshot }) {
 	const withdrawAtomic = parseUsdc(withdrawAmount)
 
 	const setStatus = (approved: boolean) =>
-		allowlist.mutate(async (client, admin) =>
-			submit(
-				await client.set_investor_status({
-					admin,
-					investor: investor.trim(),
-					approved,
-				}),
-			),
+		allowlist.mutate(
+			async (client, admin) =>
+				submit(
+					await client.set_investor_status({
+						admin,
+						investor: investor.trim(),
+						approved,
+					}),
+				),
+			{ onSuccess: () => setInvestor("") },
 		)
 
 	const onFund = (event: FormEvent) => {
 		event.preventDefault()
 		if (!fundAtomic) return
-		fund.mutate(async (client, admin) =>
-			submit(await client.fund_distributions({ admin, amount: fundAtomic })),
+		fund.mutate(
+			async (client, admin) =>
+				submit(await client.fund_distributions({ admin, amount: fundAtomic })),
+			{ onSuccess: () => setFundAmount("") },
 		)
 	}
 
@@ -54,28 +58,32 @@ export function AdminPanel({ snapshot }: { snapshot: MarketSnapshot }) {
 		if (!revenueAtomic) return
 		// Millisecond timestamp doubles as a unique idempotency key for the demo.
 		const eventId = BigInt(Date.now())
-		revenue.mutate(async (client, admin) =>
-			submit(
-				await client.record_revenue({
-					admin,
-					event_id: eventId,
-					amount: revenueAtomic,
-				}),
-			),
+		revenue.mutate(
+			async (client, admin) =>
+				submit(
+					await client.record_revenue({
+						admin,
+						event_id: eventId,
+						amount: revenueAtomic,
+					}),
+				),
+			{ onSuccess: () => setRevenueAmount("") },
 		)
 	}
 
 	const onWithdraw = (event: FormEvent) => {
 		event.preventDefault()
 		if (!withdrawAtomic || !isAccount(withdrawTo)) return
-		withdraw.mutate(async (client, admin) =>
-			submit(
-				await client.withdraw_raise({
-					admin,
-					to: withdrawTo.trim(),
-					amount: withdrawAtomic,
-				}),
-			),
+		withdraw.mutate(
+			async (client, admin) =>
+				submit(
+					await client.withdraw_raise({
+						admin,
+						to: withdrawTo.trim(),
+						amount: withdrawAtomic,
+					}),
+				),
+			{ onSuccess: () => setWithdrawAmount("") },
 		)
 	}
 
@@ -180,11 +188,13 @@ export function AdminPanel({ snapshot }: { snapshot: MarketSnapshot }) {
 					>
 						{revenue.isPending ? "Firmando…" : "Registrar ingreso"}
 					</button>
-					{revenueAtomic !== undefined &&
+					{!revenue.isPending &&
+						revenueAtomic !== undefined &&
 						revenueAtomic > treasury.available && (
 							<small className={styles.hint}>
-								Supera la tesorería disponible ({formatUsdc(treasury.available)}{" "}
-								USDC).
+								Solo hay {formatUsdc(treasury.available)} USDC fondeados sin
+								asignar. Fondea la tesorería (paso 2) antes de registrar este
+								ingreso.
 							</small>
 						)}
 				</form>
