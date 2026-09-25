@@ -10,7 +10,7 @@ test("home page visual", async ({ page }) => {
 	// ensure the app has mounted before snapshotting
 	await expect(page.getByRole("button", { name: /connect/i })).toBeVisible()
 	await expect(
-		page.getByPlaceholder("Guess a number from 1 to 10!"),
+		page.getByRole("heading", { name: /Capital para startups/ }),
 	).toBeVisible()
 	await expect(page).toHaveScreenshot("home.png", {
 		fullPage: true,

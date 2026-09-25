@@ -21,10 +21,19 @@ test("contract explorer link is present", async ({ page }) => {
 	await expect(page.locator('a[href="/debug"]').first()).toBeVisible()
 })
 
-test("guess-the-number sample contract form is present", async ({ page }) => {
+test("testnet-only disclaimer is visible", async ({ page }) => {
 	await page.goto("/")
 	await expect(
-		page.getByPlaceholder("Guess a number from 1 to 10!"),
+		page.getByText("Prototipo en Stellar Testnet").first(),
 	).toBeVisible()
-	await expect(page.getByRole("button", { name: "Submit" })).toBeVisible()
+	await expect(
+		page.getByText(/No es una oferta de inversi/).first(),
+	).toBeVisible()
+})
+
+test("Minka offering dashboard is present", async ({ page }) => {
+	await page.goto("/")
+	await expect(
+		page.getByRole("heading", { name: /Capital para startups/ }),
+	).toBeVisible()
 })

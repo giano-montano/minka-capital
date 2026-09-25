@@ -63,7 +63,7 @@ fn constructor_configures_offering_and_asset() {
 }
 
 #[test]
-#[should_panic(expected = "unit price must be positive")]
+#[should_panic(expected = "Error(Contract, #1)")]
 fn constructor_rejects_zero_unit_price() {
     let env = Env::default();
     let admin = Address::generate(&env);
@@ -128,7 +128,7 @@ fn late_investor_does_not_receive_earlier_revenue() {
 }
 
 #[test]
-#[should_panic(expected = "distribution treasury insufficient")]
+#[should_panic(expected = "Error(Contract, #8)")]
 fn one_deposit_cannot_back_two_revenue_events() {
     let env = Env::default();
     let s = setup(&env);
@@ -169,7 +169,7 @@ fn withdraws_raised_capital_to_startup() {
 }
 
 #[test]
-#[should_panic(expected = "insufficient raised capital")]
+#[should_panic(expected = "Error(Contract, #7)")]
 fn withdraw_raise_cannot_touch_distribution_funds() {
     let env = Env::default();
     let s = setup(&env);
@@ -181,7 +181,7 @@ fn withdraw_raise_cannot_touch_distribution_funds() {
 }
 
 #[test]
-#[should_panic(expected = "offering is paused")]
+#[should_panic(expected = "Error(Contract, #3)")]
 fn rejects_investment_while_paused() {
     let env = Env::default();
     let s = setup(&env);
@@ -205,7 +205,7 @@ fn claims_still_work_while_paused() {
 }
 
 #[test]
-#[should_panic(expected = "investor is not approved")]
+#[should_panic(expected = "Error(Contract, #4)")]
 fn rejects_an_unapproved_investor() {
     let env = Env::default();
     let s = setup(&env);
@@ -214,7 +214,7 @@ fn rejects_an_unapproved_investor() {
 }
 
 #[test]
-#[should_panic(expected = "offering oversubscribed")]
+#[should_panic(expected = "Error(Contract, #5)")]
 fn rejects_oversubscription() {
     let env = Env::default();
     let s = setup(&env);
@@ -223,7 +223,7 @@ fn rejects_oversubscription() {
 }
 
 #[test]
-#[should_panic(expected = "administrator mismatch")]
+#[should_panic(expected = "Error(Contract, #6)")]
 fn rejects_non_admin_revenue() {
     let env = Env::default();
     let s = setup(&env);
@@ -232,7 +232,7 @@ fn rejects_non_admin_revenue() {
 }
 
 #[test]
-#[should_panic(expected = "revenue event already processed")]
+#[should_panic(expected = "Error(Contract, #9)")]
 fn rejects_duplicate_revenue_events() {
     let env = Env::default();
     let s = setup(&env);
@@ -244,7 +244,7 @@ fn rejects_duplicate_revenue_events() {
 }
 
 #[test]
-#[should_panic(expected = "distribution treasury insufficient")]
+#[should_panic(expected = "Error(Contract, #8)")]
 fn rejects_revenue_when_treasury_is_not_funded() {
     let env = Env::default();
     let s = setup(&env);
@@ -253,7 +253,7 @@ fn rejects_revenue_when_treasury_is_not_funded() {
 }
 
 #[test]
-#[should_panic(expected = "nothing to claim")]
+#[should_panic(expected = "Error(Contract, #11)")]
 fn rejects_empty_claim() {
     let env = Env::default();
     let s = setup(&env);

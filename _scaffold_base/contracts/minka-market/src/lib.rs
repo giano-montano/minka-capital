@@ -1,7 +1,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    Address, Env, MuxedAddress, contract, contractevent, contractimpl, contracttype, token,
+    Address, Env, MuxedAddress, contract, contracterror, contractevent, contractimpl, contracttype,
+    panic_with_error, token,
 };
 
 const SCALE: i128 = 10_000_000;
@@ -10,6 +11,31 @@ const SCALE: i128 = 10_000_000;
 const DAY_IN_LEDGERS: u32 = 17_280;
 const TTL_THRESHOLD: u32 = 7 * DAY_IN_LEDGERS;
 const TTL_EXTEND_TO: u32 = 30 * DAY_IN_LEDGERS;
+
+/// Stable error codes surfaced to clients as `Error(Contract, #n)`.
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum Error {
+    InvalidConfig = 1,
+    InvalidAmount = 2,
+    OfferingPaused = 3,
+    InvestorNotApproved = 4,
+    OfferingOversubscribed = 5,
+    NotAdmin = 6,
+    InsufficientRaisedCapital = 7,
+    InsufficientDistributionFunds = 8,
+    DuplicateRevenueEvent = 9,
+    NoInvestors = 10,
+    NothingToClaim = 11,
+    ArithmeticOverflow = 12,
+}
+
+fn ensure(env: &Env, condition: bool, error: Error) {
+    if !condition {
+        panic_with_error!(env, error);
+    }
+}
 
 #[contracttype]
 #[derive(Clone)]
@@ -121,8 +147,8 @@ impl MinkaMarket {
         unit_price: i128,
         target_units: i128,
     ) {
-        assert!(target_units > 0, "target units must be positive");
-        assert!(unit_price > 0, "unit price must be positive");
+        ensure(&env, target_units > 0, Error::InvalidConfig);
+        ensure(&env, unit_price > 0, Error::InvalidConfig);
 
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Usdc, &usdc);
@@ -174,24 +200,25 @@ impl MinkaMarket {
     /// Escrows the configured Testnet SAC asset for a primary-market investment.
     pub fn invest(env: Env, investor: Address, units: i128) {
         investor.require_auth();
-        assert!(units > 0, "units must be positive");
+        ensure(&env, units > 0, Error::InvalidAmount);
 
         let mut offering = Self::offering(&env);
-        assert!(!offering.paused, "offering is paused");
+        ensure(&env, !offering.paused, Error::OfferingPaused);
         let mut position = Self::position(&env, &investor);
-        assert!(position.approved, "investor is not approved");
+        ensure(&env, position.approved, Error::InvestorNotApproved);
         let sold_units = offering
             .sold_units
             .checked_add(units)
-            .expect("units overflow");
-        assert!(
+            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
+        ensure(
+            &env,
             sold_units <= offering.target_units,
-            "offering oversubscribed"
+            Error::OfferingOversubscribed,
         );
 
         let payment = units
             .checked_mul(Self::unit_price(&env))
-            .expect("investment payment overflow");
+            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
         Self::token(&env).transfer(
             &investor,
             &MuxedAddress::from(env.current_contract_address()),
@@ -206,7 +233,7 @@ impl MinkaMarket {
         treasury.raised = treasury
             .raised
             .checked_add(payment)
-            .expect("raised capital overflow");
+            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
 
         Self::save_position(&env, &investor, &position);
         Self::save_offering(&env, &offering);
@@ -223,10 +250,14 @@ impl MinkaMarket {
     /// funds are never touched.
     pub fn withdraw_raise(env: Env, admin: Address, to: Address, amount: i128) {
         Self::admin(&env, &admin);
-        assert!(amount > 0, "withdrawal amount must be positive");
+        ensure(&env, amount > 0, Error::InvalidAmount);
 
         let mut treasury = Self::treasury(&env);
-        assert!(treasury.raised >= amount, "insufficient raised capital");
+        ensure(
+            &env,
+            treasury.raised >= amount,
+            Error::InsufficientRaisedCapital,
+        );
         treasury.raised -= amount;
         Self::save_treasury(&env, &treasury);
 
@@ -242,7 +273,7 @@ impl MinkaMarket {
     /// primary-offering capital.
     pub fn fund_distributions(env: Env, admin: Address, amount: i128) {
         Self::admin(&env, &admin);
-        assert!(amount > 0, "distribution amount must be positive");
+        ensure(&env, amount > 0, Error::InvalidAmount);
 
         Self::token(&env).transfer(
             &admin,
@@ -254,7 +285,7 @@ impl MinkaMarket {
         treasury.available = treasury
             .available
             .checked_add(amount)
-            .expect("distribution pool overflow");
+            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
         Self::save_treasury(&env, &treasury);
         DistributionFunded { amount }.publish(&env);
     }
@@ -264,25 +295,29 @@ impl MinkaMarket {
     /// deposit can never back two revenue events.
     pub fn record_revenue(env: Env, admin: Address, event_id: u64, amount: i128) {
         Self::admin(&env, &admin);
-        assert!(amount > 0, "revenue must be positive");
+        ensure(&env, amount > 0, Error::InvalidAmount);
         let event_key = DataKey::RevenueEvent(event_id);
-        assert!(
+        ensure(
+            &env,
             !env.storage().persistent().has(&event_key),
-            "revenue event already processed"
+            Error::DuplicateRevenueEvent,
         );
 
         let mut offering = Self::offering(&env);
-        assert!(offering.sold_units > 0, "no investors to distribute to");
+        ensure(&env, offering.sold_units > 0, Error::NoInvestors);
         let mut treasury = Self::treasury(&env);
-        assert!(
+        ensure(
+            &env,
             treasury.available >= amount,
-            "distribution treasury insufficient"
+            Error::InsufficientDistributionFunds,
         );
         treasury.available -= amount;
         treasury.allocated += amount;
 
-        let increment =
-            amount.checked_mul(SCALE).expect("revenue amount overflow") / offering.sold_units;
+        let increment = amount
+            .checked_mul(SCALE)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow))
+            / offering.sold_units;
         offering.revenue_per_unit_scaled += increment;
 
         env.storage().persistent().set(&event_key, &true);
@@ -302,11 +337,12 @@ impl MinkaMarket {
         Self::settle_position(&mut position, offering.revenue_per_unit_scaled);
 
         let amount = position.claimable;
-        assert!(amount > 0, "nothing to claim");
+        ensure(&env, amount > 0, Error::NothingToClaim);
         let mut treasury = Self::treasury(&env);
-        assert!(
+        ensure(
+            &env,
             treasury.allocated >= amount,
-            "distribution treasury insufficient"
+            Error::InsufficientDistributionFunds,
         );
         treasury.allocated -= amount;
         position.claimable = 0;
@@ -357,7 +393,7 @@ impl MinkaMarket {
 
     fn admin(env: &Env, supplied_admin: &Address) {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
-        assert!(admin == *supplied_admin, "administrator mismatch");
+        ensure(env, admin == *supplied_admin, Error::NotAdmin);
         supplied_admin.require_auth();
     }
 
