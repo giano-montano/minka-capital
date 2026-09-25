@@ -13,7 +13,10 @@
 #
 # Testnet only. Identities are Stellar CLI keys (~/.config/stellar); no secret
 # is printed or written to the repository. Transaction hashes are appended to
-# demo-testnet.log in the current directory.
+# demo-testnet.log in the current directory, and app/.env.local is written so
+# `npx vite` in app/ points at the contract used here (production builds keep
+# using app/.env.production). Safe to re-run: identities and trustlines are
+# reused; each run without MINKA_MARKET_ID deploys a fresh contract.
 set -euo pipefail
 
 NETWORK=testnet
@@ -89,13 +92,15 @@ for name in "$ADMIN" "$ISSUER" "$ANA" "$LUIS"; do
 done
 
 echo "== Circle Testnet USDC (XLM -> USDC on the DEX)"
-# Each account buys exactly what the demo spends.
-buy_usdc "$ISSUER" "$REVENUE"
+# Investors buy exactly what they invest; the issuer buys two revenue rounds:
+# one recorded here and one left for the live dashboard demo.
+buy_usdc "$ISSUER" $((2 * REVENUE))
 buy_usdc "$ANA" $((ANA_UNITS * UNIT_PRICE))
 buy_usdc "$LUIS" $((LUIS_UNITS * UNIT_PRICE))
 
 if [ -z "${MINKA_MARKET_ID:-}" ]; then
   echo "== Build + deploy (constructor runs in the deploy transaction)"
+  START_LEDGER="$(stellar ledger latest --network "$NETWORK" --output json | grep -oE '"sequence":[0-9]+' | cut -d: -f2)"
   (cd "$PROJECT_ROOT" && stellar contract build --package minka-market >/dev/null)
   MINKA_MARKET_ID="$(tx "deploy + constructor" stellar contract deploy \
     --wasm "$PROJECT_ROOT/target/wasm32v1-none/release/minka_market.wasm" \
@@ -103,6 +108,13 @@ if [ -z "${MINKA_MARKET_ID:-}" ]; then
     -- --admin "$ADMIN" --usdc "$USDC_SAC_ID" | tail -1)"
 fi
 echo "MINKA_MARKET_ID=$MINKA_MARKET_ID" | tee -a "$LOG"
+
+ENV_LOCAL="$PROJECT_ROOT/app/.env.local"
+sed -e "s|^PUBLIC_MINKA_MARKET_ID=.*|PUBLIC_MINKA_MARKET_ID=$MINKA_MARKET_ID|" \
+  -e "s|^PUBLIC_USDC_SAC_ID=.*|PUBLIC_USDC_SAC_ID=$USDC_SAC_ID|" \
+  -e "s|^PUBLIC_MINKA_START_LEDGER=.*|PUBLIC_MINKA_START_LEDGER=${START_LEDGER:-}|" \
+  "$PROJECT_ROOT/app/.env.production" > "$ENV_LOCAL"
+echo "Dashboard config written to app/.env.local"
 
 echo "== Minka approves the issuer and investors"
 invoke "approve issuer $ISSUER" "$ADMIN" set_issuer_status --admin "$ADMIN" --issuer "$ISSUER" --approved true
