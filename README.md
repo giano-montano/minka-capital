@@ -61,7 +61,7 @@ La interfaz React/Vite inicial esta en [`_scaffold_base/app`](_scaffold_base/app
 | Eventos Soroban para indexacion | Implementado |
 | Dashboard React | Conectado al contrato: lecturas on-chain, invest/claim firmados, consola admin y feed en vivo via `getEvents` |
 | Transferencias reales de USDC Testnet mediante SAC | Implementado y probado localmente |
-| Despliegue en Testnet | Siguiente hito |
+| Despliegue en Testnet | Desplegado (ver IDs abajo); demo de inversion/claim pendiente de USDC del faucet |
 
 Por transparencia: el contrato ahora cobra el activo SAC configurado al invertir, mantiene un fondo separado para distribuciones y `claim()` transfiere el monto proporcional. La direccion real del SAC USDC, la wallet y el despliegue Testnet aun deben configurarse antes de la demo final.
 
@@ -119,23 +119,41 @@ npm install
 npm run dev
 ```
 
-## Despliegue Testnet (pendiente de registrar)
+## Despliegue Testnet
 
-Antes de la presentacion se publicaran aqui los identificadores verificables:
+Desplegado el 25 de septiembre de 2026 (ledger 4859703). Todos los identificadores son verificables en Stellar Expert:
 
 | Recurso | Valor |
 | --- | --- |
 | Red | Stellar Testnet |
-| Contrato `minka-market` | `PENDIENTE_DE_DESPLIEGUE` |
-| SAC USDC Testnet | `PENDIENTE_DE_CONFIGURACION` |
-| Wallet admin demo | `PENDIENTE_DE_FONDEO` |
+| Contrato `minka-market` | [`CDEJ6W6KLXH5YCHZTGOHDWYNQ3YNWQZOJZDJHJHIEWYF7Z5YNVIDMFMM`](https://stellar.expert/explorer/testnet/contract/CDEJ6W6KLXH5YCHZTGOHDWYNQ3YNWQZOJZDJHJHIEWYF7Z5YNVIDMFMM) |
+| SAC USDC Testnet (Circle) | [`CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA`](https://stellar.expert/explorer/testnet/contract/CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA) |
+| Wallet admin demo | `GCKT2QQJWB5EZSFN22AU33NTRGSK5SUK44BHV75MYGLM5Y67NPLPCZFJ` |
+| Inversionista demo Ana | `GC7PF3RLPCULFFF27AY7IDDMRU5DJ527XJOFVMUMGLFZ7Q4HUO5IHLX7` |
+| Inversionista demo Luis | `GDSDTSZUODLBQOIC3JGJVX6QGRQA32EBQYCXZQLBEHTSKLE3OXIMLRXN` |
+| Parametros | 0.10 USDC por unidad (`unit_price = 1000000`), 1,000 unidades |
 
-Una vez configurados el alias, la cuenta administradora y el SAC, copia `.env.example` a `.env`, completa las variables no secretas y ejecuta:
+### Transacciones de la demo
+
+| Paso | Transaccion |
+| --- | --- |
+| 1. Despliegue + constructor (`OfferingCreated`) | [`cf1b9226…`](https://stellar.expert/explorer/testnet/tx/cf1b92263620854da0be41e31657831a7bbc382cea1bf67b745e844c0f2cf847) |
+| 2. Aprobar a Ana (`InvestorStatusChanged`) | [`d4e3956b…`](https://stellar.expert/explorer/testnet/tx/d4e3956be20b230833cf8fcfcd41c1651fa98fa5f9535f4e7c8e570b0fc5dc88) |
+| 2. Aprobar a Luis (`InvestorStatusChanged`) | [`d4146cbf…`](https://stellar.expert/explorer/testnet/tx/d4146cbf35b7b856fb6e0cd1f5e83894727fe00126aed8a662cae49bc8c7f80f) |
+| 3. Inversiones de Ana y Luis | pendiente |
+| 4. Fondeo + registro de ingreso | pendiente |
+| 5. Claim de Ana | pendiente |
+
+### Reproducir el despliegue
+
+Con una identidad de Stellar CLI fondeada en Testnet (`stellar keys generate admin --network testnet --fund`) y trustline a USDC:
 
 ```powershell
 cd _scaffold_base
-.\scripts\deploy-minka-testnet.ps1 -AdminAlias admin -UsdcSacId C... -UnitPrice 10000000 -TargetUnits 1000
+.\scripts\deploy-minka-testnet.ps1 -AdminAlias admin -UsdcSacId CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA -UnitPrice 1000000 -TargetUnits 1000
 ```
+
+Luego copia `app/.env.example` a `app/.env` y completa `PUBLIC_MINKA_MARKET_ID`, `PUBLIC_USDC_SAC_ID` y `PUBLIC_MINKA_START_LEDGER`.
 
 ## Roadmap inmediato
 
