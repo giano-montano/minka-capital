@@ -8,6 +8,9 @@ const POLL_MS = 4000
 const PAGE_LIMIT = 100
 // Without a configured deploy ledger, look back ~1 day (5s ledgers).
 const DEFAULT_LOOKBACK_LEDGERS = 17_000
+// The RPC's oldest ledger keeps moving; stay a little inside the window so the
+// first getEvents call does not fall off its edge.
+const RETENTION_MARGIN_LEDGERS = 20
 const MAX_EVENTS = 200
 
 function toMarketEvent(event: rpc.Api.EventResponse): MarketEvent {
@@ -28,10 +31,28 @@ function toMarketEvent(event: rpc.Api.EventResponse): MarketEvent {
 	}
 }
 
-async function initialStartLedger(): Promise<number> {
-	const { sequence } = await rpcServer.getLatestLedger()
-	const floor = Math.max(1, sequence - DEFAULT_LOOKBACK_LEDGERS)
-	return Math.max(floor, minkaConfig.startLedger ?? floor)
+/**
+ * Picks where the backfill starts: the deploy ledger when configured, else
+ * ~1 day back, never before the oldest ledger the RPC still retains (~7 days
+ * on Testnet). `truncated` tells the UI that older history was pruned by the
+ * RPC and has to be checked on the explorer instead.
+ */
+async function initialStartLedger(): Promise<{
+	startLedger: number
+	truncated: boolean
+}> {
+	const { latestLedger, oldestLedger } = await rpcServer.getHealth()
+	const retained = Math.min(
+		latestLedger,
+		oldestLedger + RETENTION_MARGIN_LEDGERS,
+	)
+	const wanted =
+		minkaConfig.startLedger ??
+		Math.max(1, latestLedger - DEFAULT_LOOKBACK_LEDGERS)
+	return {
+		startLedger: Math.max(retained, wanted),
+		truncated: minkaConfig.startLedger !== undefined && wanted < retained,
+	}
 }
 
 /**
@@ -44,6 +65,7 @@ export function useMarketEvents(onNewEvents?: (events: MarketEvent[]) => void) {
 	const [error, setError] = useState<string>()
 	const [isLoading, setIsLoading] = useState(minkaConfig.isContractConfigured)
 	const [lastSyncedLedger, setLastSyncedLedger] = useState<number>()
+	const [historyTruncated, setHistoryTruncated] = useState(false)
 	const onNewEventsRef = useRef(onNewEvents)
 	onNewEventsRef.current = onNewEvents
 
@@ -64,13 +86,22 @@ export function useMarketEvents(onNewEvents?: (events: MarketEvent[]) => void) {
 				const fresh: MarketEvent[] = []
 				// Drain every available page before waiting for the next poll.
 				for (;;) {
-					const response = cursor
-						? await rpcServer.getEvents({ filters, cursor, limit: PAGE_LIMIT })
-						: await rpcServer.getEvents({
-								filters,
-								startLedger: await initialStartLedger(),
-								limit: PAGE_LIMIT,
-							})
+					let response: rpc.Api.GetEventsResponse
+					if (cursor) {
+						response = await rpcServer.getEvents({
+							filters,
+							cursor,
+							limit: PAGE_LIMIT,
+						})
+					} else {
+						const { startLedger, truncated } = await initialStartLedger()
+						setHistoryTruncated(truncated)
+						response = await rpcServer.getEvents({
+							filters,
+							startLedger,
+							limit: PAGE_LIMIT,
+						})
+					}
 					if (stopped) return
 					cursor = response.cursor
 					setLastSyncedLedger(response.latestLedger)
@@ -110,5 +141,5 @@ export function useMarketEvents(onNewEvents?: (events: MarketEvent[]) => void) {
 		}
 	}, [])
 
-	return { events, error, isLoading, lastSyncedLedger }
+	return { events, error, isLoading, lastSyncedLedger, historyTruncated }
 }

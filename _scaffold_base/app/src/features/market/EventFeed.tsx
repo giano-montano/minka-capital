@@ -77,6 +77,7 @@ interface Props {
 	isLoading: boolean
 	error?: string
 	lastSyncedLedger?: number
+	historyTruncated?: boolean
 }
 
 export function EventFeed({
@@ -85,6 +86,7 @@ export function EventFeed({
 	isLoading,
 	error,
 	lastSyncedLedger,
+	historyTruncated,
 }: Props) {
 	const symbols = new Map(offerings.map((o) => [o.id, o.symbol]))
 	const symbolOf = (id: number) => symbols.get(id) ?? `Oferta #${id}`
@@ -106,6 +108,21 @@ export function EventFeed({
 							: "Conectando…"}
 				</span>
 			</div>
+
+			{historyTruncated && !isLoading && (
+				<p className={styles.muted}>
+					Stellar RPC solo conserva los eventos de los últimos días; la
+					actividad anterior sigue verificable en{" "}
+					<a
+						href={minkaConfig.contractUrl(minkaConfig.contractId)}
+						target="_blank"
+						rel="noreferrer"
+					>
+						Stellar Expert
+					</a>
+					.
+				</p>
+			)}
 
 			{isLoading ? (
 				<p className={styles.muted}>Cargando eventos del contrato…</p>

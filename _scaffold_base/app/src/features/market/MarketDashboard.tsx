@@ -90,7 +90,8 @@ export function MarketDashboard() {
 					<h2>Conecta el dashboard a un contrato desplegado</h2>
 					<p className={styles.muted}>
 						Despliega <code>minka-market</code> con{" "}
-						<code>scripts/deploy-minka-testnet.ps1</code> y define{" "}
+						<code>scripts/demo-minka-testnet.sh</code> (Linux/macOS) o{" "}
+						<code>scripts/deploy-minka-testnet.ps1</code> (Windows) y define{" "}
 						<code>PUBLIC_MINKA_MARKET_ID</code> en <code>app/.env</code>.
 					</p>
 				</section>
@@ -170,6 +171,7 @@ export function MarketDashboard() {
 						isLoading={feed.isLoading}
 						error={feed.error}
 						lastSyncedLedger={feed.lastSyncedLedger}
+						historyTruncated={feed.historyTruncated}
 					/>
 				</>
 			)}
