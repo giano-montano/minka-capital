@@ -85,7 +85,7 @@ sequenceDiagram
     participant Investor as Inversionista aprobado
 
     Admin->>UI: Configura LumiSolar Perú, precio y unidades objetivo
-    UI->>Contract: deploy + __constructor(admin, usdc, unit_price, target_units)
+    UI->>Contract: deploy + __constructor(admin, usdc) y create_offering(nombre, simbolo, precio, unidades)
     Contract-->>UI: Oferta creada / evento OfferingCreated
 
     Admin->>Contract: set_investor_status(wallet, true)

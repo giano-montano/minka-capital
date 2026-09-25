@@ -16,6 +16,16 @@ export function formatUsdc(atomic: bigint, maxDecimals = 2): string {
 	return negative ? `-${text}` : text
 }
 
+/** Plain decimal text for a form input, e.g. 1000000n -> "0.1" (no grouping). */
+export function usdcInputValue(atomic: bigint): string {
+	const whole = atomic / ATOMIC
+	const fraction = (atomic % ATOMIC)
+		.toString()
+		.padStart(USDC_DECIMALS, "0")
+		.replace(/0+$/, "")
+	return fraction ? `${whole}.${fraction}` : whole.toString()
+}
+
 /** Parses a decimal USDC string into atomic units; returns undefined if invalid. */
 export function parseUsdc(input: string): bigint | undefined {
 	const value = input.trim().replace(",", ".")

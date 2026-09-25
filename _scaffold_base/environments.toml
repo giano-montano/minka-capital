@@ -84,7 +84,7 @@ default = true
 # soroban-token-contract = { id = "C678..." }
 # eurc = { id = "C789..." }
 guess_the_number = { client = true, constructor_args = "--admin me", after_deploy = "reset" }
-minka_market = { id = "CDEJ6W6KLXH5YCHZTGOHDWYNQ3YNWQZOJZDJHJHIEWYF7Z5YNVIDMFMM" }
+minka_market = { id = "CD4QCMLVUWY74ZDGCQCHIYNJ6BJRXSOEJHURJKQH6YLBFDMZIK3K2WI7" }
 
 ### Production environment configuration
 [production.network]

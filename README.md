@@ -10,27 +10,39 @@ Las startups peruanas suelen depender de financiamiento lento, poco transparente
 
 ## Propuesta
 
-Minka Capital modela una emision primaria ficticia: **LUMI-RSN**, una nota de participacion en ingresos de la startup demo *LumiSolar Peru*. Las wallets aprobadas adquieren unidades; un administrador registra eventos de ingresos idempotentes; y cada wallet puede consultar y reclamar su monto proporcional.
+Minka Capital es una plataforma de mercado primario multi-oferta con tres roles:
 
-El diseno apunta al track **Realtime Systems & High-Velocity Finance** mediante eventos on-chain, contabilidad proporcional por evento e infraestructura preparada para actualizar el dashboard desde Stellar RPC.
+| Rol | Que puede hacer |
+| --- | --- |
+| **Minka (admin de plataforma)** | Aprueba empresas emisoras (`set_issuer_status`) e inversionistas (`set_investor_status`, allowlist global tipo KYC demo). Puede pausar cualquier oferta. |
+| **Empresa emisora** | Publica ofertas de participacion en ingresos con nombre, simbolo, precio por unidad y unidades (`create_offering`); ajusta precio y unidades hasta la primera venta (`update_offering`); fondea distribuciones, registra ventas verificadas y retira el capital levantado. |
+| **Inversionista aprobado** | Compra unidades de cualquier oferta con USDC Testnet (`invest`) y reclama su retorno proporcional (`claim`). |
+
+La oferta de ejemplo es **LUMI-RSN**, una nota ficticia de participacion en ingresos de la startup demo *LumiSolar Peru*.
+
+El diseno apunta al track **Realtime Systems & High-Velocity Finance** mediante eventos on-chain, contabilidad proporcional por evento y un dashboard que se actualiza en vivo desde Stellar RPC.
 
 ## Flujo demo
 
 ```mermaid
 sequenceDiagram
-    participant A as Admin / operador
+    participant M as Minka (admin)
+    participant E as Empresa emisora
     participant C as Contrato Soroban
     participant I as Inversionista aprobado
     participant D as Dashboard
 
-    A->>C: deploy + __constructor(admin, usdc, unit_price, target_units)
-    A->>C: set_investor_status(wallet, true)
-    I->>C: invest(units)
+    M->>C: deploy + __constructor(admin, usdc)
+    M->>C: set_issuer_status(empresa, true)
+    M->>C: set_investor_status(wallet, true)
+    E->>C: create_offering(nombre, simbolo, precio, unidades)
+    C-->>D: OfferingCreated
+    I->>C: invest(offering_id, units)
     C-->>D: InvestmentRecorded
-    A->>C: fund_distributions(amount)
-    A->>C: record_revenue(event_id, amount)
+    E->>C: fund_distributions(offering_id, amount)
+    E->>C: record_revenue(offering_id, event_id, amount)
     C-->>D: RevenueRecorded
-    I->>C: claim()
+    I->>C: claim(offering_id)
     C-->>D: ClaimRecorded
 ```
 
@@ -40,44 +52,43 @@ Diagrama completo: [arquitectura y flujo](docs/architecture/minka-capital-system
 
 El contrato [`minka-market`](_scaffold_base/contracts/minka-market/src/lib.rs) se implementa en Rust con Soroban SDK y contiene:
 
-- Constructor atomico (`__constructor`): la oferta se configura en la misma transaccion del despliegue, sin ventana para que un tercero la inicialice.
-- Allowlist de wallets mediante `set_investor_status` y pausa de nuevas inversiones con `set_paused`.
-- Limite de unidades de la oferta y control de sobreasignacion.
-- Tesoreria segregada (`get_treasury`): capital levantado (`raised`), distribuciones fondeadas sin asignar (`available`) y distribuciones asignadas a inversionistas (`allocated`). Un mismo deposito no puede respaldar dos eventos de ingreso y los claims nunca usan capital de la oferta.
-- `withdraw_raise` libera el capital levantado a la wallet de la startup sin tocar fondos de distribucion.
-- Registro idempotente de ingresos por `event_id`.
+- Constructor atomico (`__constructor(admin, usdc)`): la plataforma se configura en la misma transaccion del despliegue, sin ventana para que un tercero la inicialice.
+- Multiples ofertas por contrato, cada una con su emisor, precio, unidades, posiciones y tesoreria propias (`get_offerings`, `get_offering`).
+- Reglas de precio: la empresa puede corregir precio y unidades mientras no haya ventas; tras la primera venta el precio queda fijo (todos pagan igual) y solo se pueden ampliar unidades o pausar la oferta.
+- Tesoreria segregada por oferta: capital levantado (`raised`), distribuciones fondeadas sin asignar (`available`) y distribuciones asignadas a inversionistas (`allocated`). Un mismo deposito no puede respaldar dos eventos de ingreso, los claims nunca usan capital y los fondos de una oferta nunca pagan a inversionistas de otra.
+- `withdraw_raise` libera el capital levantado solo a la empresa emisora; el admin de Minka no puede retirarlo.
+- Registro idempotente de ingresos por `(offering_id, event_id)`.
 - Calculo proporcional con precision escalada y checkpoints por posicion (un inversionista tardio no cobra ingresos previos). El redondeo de la division pro-rata deja un residuo minimo en `allocated`.
 - Extension de TTL del almacenamiento en cada operacion para que el estado no se archive durante la demo.
-- Eventos Soroban: `OfferingCreated`, `OfferingPauseChanged`, `InvestorStatusChanged`, `InvestmentRecorded`, `RaiseWithdrawn`, `DistributionFunded`, `RevenueRecorded` y `ClaimRecorded`.
-- Autorizacion de la wallet para invertir/reclamar y del administrador para operaciones privilegiadas.
+- Eventos Soroban: `IssuerStatusChanged`, `InvestorStatusChanged`, `OfferingCreated`, `OfferingUpdated`, `OfferingPauseChanged`, `InvestmentRecorded`, `RaiseWithdrawn`, `DistributionFunded`, `RevenueRecorded` y `ClaimRecorded`.
 
-La interfaz React/Vite inicial esta en [`_scaffold_base/app`](_scaffold_base/app) y muestra el dashboard de la oferta, posicion, tesoreria y feed de eventos.
+El dashboard React/Vite en [`_scaffold_base/app`](_scaffold_base/app) lee el contrato con `contract.Client.from` (sin bindings generados) y muestra el catalogo de ofertas, la posicion del inversionista, la consola de la empresa emisora, la consola de Minka y un feed de eventos en vivo via `getEvents`.
 
 ### Estado actual del MVP
 
 | Componente | Estado |
 | --- | --- |
-| Contrato de oferta, allowlist y reparto proporcional | Implementado y con pruebas unitarias |
+| Contrato multi-oferta, roles, allowlist y reparto proporcional | Implementado con 27 pruebas unitarias |
 | Eventos Soroban para indexacion | Implementado |
-| Dashboard React | Conectado al contrato: lecturas on-chain, invest/claim firmados, consola admin y feed en vivo via `getEvents` |
-| Transferencias reales de USDC Testnet mediante SAC | Implementado y probado localmente |
-| Despliegue en Testnet | Desplegado (ver IDs abajo); demo de inversion/claim pendiente de USDC del faucet |
-
-Por transparencia: el contrato ahora cobra el activo SAC configurado al invertir, mantiene un fondo separado para distribuciones y `claim()` transfiere el monto proporcional. La direccion real del SAC USDC, la wallet y el despliegue Testnet aun deben configurarse antes de la demo final.
+| Dashboard React | Catalogo, invest/claim firmados, consolas de empresa y de Minka, feed en vivo |
+| Transferencias reales de USDC Testnet mediante SAC | Implementado |
+| Despliegue en Testnet | Desplegado (ver IDs abajo) |
 
 ## Evidencia verificable
 
 Las pruebas cubren:
 
-1. Configuracion del SAC, precio unitario y validacion del constructor.
-2. Escrow del pago de la inversion en el contrato.
-3. Distribucion pro-rata 60/40, transferencia SAC y reinicio del saldo tras `claim`.
-4. Checkpoints: un inversionista tardio no recibe ingresos anteriores.
-5. Tesoreria segregada: un deposito no respalda dos ingresos, los claims no usan capital y `withdraw_raise` no toca distribuciones.
-6. Pausa de la oferta sin bloquear claims.
-7. Rechazo de wallets no aprobadas, sobreasignacion, admin incorrecto, eventos duplicados, ingresos no fondeados y claims vacios.
+1. Constructor, aprobacion de emisores y publicacion de ofertas con ids secuenciales.
+2. Validacion de metadatos (precio cero, simbolo de mas de 12 caracteres) y rechazo de empresas no aprobadas.
+3. Edicion libre antes de la primera venta; precio bloqueado y oferta que solo puede crecer despues.
+4. Escrow del pago al precio de cada oferta y distribucion pro-rata 60/40 con transferencia SAC.
+5. Aislamiento entre ofertas: tesorerias, posiciones y `event_id` independientes.
+6. Checkpoints: un inversionista tardio no recibe ingresos anteriores.
+7. Tesoreria segregada: un deposito no respalda dos ingresos, los claims no usan capital y solo el emisor retira el capital.
+8. Pausa por emisor o por Minka sin bloquear claims.
+9. Rechazo de inversionistas no aprobados, sobreasignacion, roles incorrectos, eventos duplicados, ofertas inexistentes y claims vacios.
 
-Ejecutar (17 pruebas, todas en verde el 25 de septiembre de 2026):
+Ejecutar (27 pruebas, todas en verde el 25 de septiembre de 2026):
 
 ```powershell
 cd _scaffold_base
@@ -92,16 +103,15 @@ docker run --rm -v "${PWD}:/work" -v minka-target:/target -e CARGO_TARGET_DIR=/t
 docker run --rm -v "${PWD}:/work" -v minka-target:/target -e CARGO_TARGET_DIR=/target -w /work rust:1.93 cargo build -p minka-market --target wasm32v1-none --release
 ```
 
-Los errores del contrato se exponen como codigos estables `Error(Contract, #n)` (`InvestorNotApproved = 4`, `NothingToClaim = 11`, etc.) que el dashboard traduce a mensajes legibles.
+Los errores del contrato se exponen como codigos estables `Error(Contract, #n)` (`InvestorNotApproved = 4`, `IssuerNotApproved = 13`, `OfferingLocked = 16`, etc.) que el dashboard traduce a mensajes legibles.
 
 ## Ejecutar localmente
 
 ### Requisitos
 
-- Rust `1.93` (el proyecto lo fija con `rust-toolchain.toml`).
+- Rust `1.93` (el proyecto lo fija con `rust-toolchain.toml`) o Docker.
 - Node.js 22+ y npm.
-- Stellar CLI.
-- Stellar Scaffold CLI.
+- Stellar CLI (o la imagen Docker `stellar/stellar-cli`) para desplegar.
 
 ### Contrato
 
@@ -116,50 +126,58 @@ cargo build -p minka-market --target wasm32v1-none --release
 ```powershell
 cd _scaffold_base
 npm install
-npm run dev
+copy app\.env.example app\.env   # completar PUBLIC_MINKA_MARKET_ID, PUBLIC_USDC_SAC_ID, PUBLIC_MINKA_START_LEDGER
+cd app
+npx vite
 ```
+
+`npm run dev` tambien lanza `stellar scaffold watch` para una red local; para usar el contrato de Testnet basta con Vite.
 
 ## Despliegue Testnet
 
-Desplegado el 25 de septiembre de 2026 (ledger 4859703). Todos los identificadores son verificables en Stellar Expert:
+Contrato multi-oferta desplegado el 25 de septiembre de 2026 (ledger 4869273). Todos los identificadores son verificables en Stellar Expert:
 
 | Recurso | Valor |
 | --- | --- |
 | Red | Stellar Testnet |
-| Contrato `minka-market` | [`CDEJ6W6KLXH5YCHZTGOHDWYNQ3YNWQZOJZDJHJHIEWYF7Z5YNVIDMFMM`](https://stellar.expert/explorer/testnet/contract/CDEJ6W6KLXH5YCHZTGOHDWYNQ3YNWQZOJZDJHJHIEWYF7Z5YNVIDMFMM) |
+| Contrato `minka-market` | [`CD4QCMLVUWY74ZDGCQCHIYNJ6BJRXSOEJHURJKQH6YLBFDMZIK3K2WI7`](https://stellar.expert/explorer/testnet/contract/CD4QCMLVUWY74ZDGCQCHIYNJ6BJRXSOEJHURJKQH6YLBFDMZIK3K2WI7) |
 | SAC USDC Testnet (Circle) | [`CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA`](https://stellar.expert/explorer/testnet/contract/CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA) |
-| Wallet admin demo | `GCKT2QQJWB5EZSFN22AU33NTRGSK5SUK44BHV75MYGLM5Y67NPLPCZFJ` |
+| Admin de Minka | `GCKT2QQJWB5EZSFN22AU33NTRGSK5SUK44BHV75MYGLM5Y67NPLPCZFJ` |
+| Empresa emisora demo (LumiSolar) | `GDLO26OC4T7HITSVQHHWP5OILUP5472RPL6MNPIW2JOT3HMNGZD7JQEC` |
 | Inversionista demo Ana | `GC7PF3RLPCULFFF27AY7IDDMRU5DJ527XJOFVMUMGLFZ7Q4HUO5IHLX7` |
 | Inversionista demo Luis | `GDSDTSZUODLBQOIC3JGJVX6QGRQA32EBQYCXZQLBEHTSKLE3OXIMLRXN` |
-| Parametros | 0.10 USDC por unidad (`unit_price = 1000000`), 1,000 unidades |
 
 ### Transacciones de la demo
 
 | Paso | Transaccion |
 | --- | --- |
-| 1. Despliegue + constructor (`OfferingCreated`) | [`cf1b9226…`](https://stellar.expert/explorer/testnet/tx/cf1b92263620854da0be41e31657831a7bbc382cea1bf67b745e844c0f2cf847) |
-| 2. Aprobar a Ana (`InvestorStatusChanged`) | [`d4e3956b…`](https://stellar.expert/explorer/testnet/tx/d4e3956be20b230833cf8fcfcd41c1651fa98fa5f9535f4e7c8e570b0fc5dc88) |
-| 2. Aprobar a Luis (`InvestorStatusChanged`) | [`d4146cbf…`](https://stellar.expert/explorer/testnet/tx/d4146cbf35b7b856fb6e0cd1f5e83894727fe00126aed8a662cae49bc8c7f80f) |
-| 3. Inversiones de Ana y Luis | pendiente |
-| 4. Fondeo + registro de ingreso | pendiente |
-| 5. Claim de Ana | pendiente |
+| 1. Despliegue + constructor | [`b1b1f607…`](https://stellar.expert/explorer/testnet/tx/b1b1f607424bfa5fa7d5dfbec3d367c24069be105ca0d5dded6589bad4a7dd37) |
+| 2. Minka aprueba a LumiSolar como emisora | [`c4c3f16f…`](https://stellar.expert/explorer/testnet/tx/c4c3f16f8f2ac907ae4885eb42ba7d4f318134e3e1aa3f9f6855fbeb3e9e7ae0) |
+| 2. Minka aprueba a Ana | [`ed348f30…`](https://stellar.expert/explorer/testnet/tx/ed348f30332d7fc6f15fa62cee29986f19c31cfae18b09989c5b1d23faa75cba) |
+| 2. Minka aprueba a Luis | [`4408597d…`](https://stellar.expert/explorer/testnet/tx/4408597dcf76171f53860a04bf3e74b430ab307e199a3dd76cc14418a7ac9b62) |
+| 3. LumiSolar publica LUMI-RSN | pendiente |
+| 4. Inversiones de Ana y Luis | pendiente |
+| 5. Fondeo + registro de ingreso | pendiente |
+| 6. Claim de Ana | pendiente |
+
+Version anterior (una sola oferta, reemplazada por el modelo multi-oferta): [`CDEJ6W6K…DMFMM`](https://stellar.expert/explorer/testnet/contract/CDEJ6W6KLXH5YCHZTGOHDWYNQ3YNWQZOJZDJHJHIEWYF7Z5YNVIDMFMM).
 
 ### Reproducir el despliegue
 
-Con una identidad de Stellar CLI fondeada en Testnet (`stellar keys generate admin --network testnet --fund`) y trustline a USDC:
+Con una identidad de Stellar CLI fondeada en Testnet (`stellar keys generate admin --network testnet --fund`):
 
 ```powershell
 cd _scaffold_base
-.\scripts\deploy-minka-testnet.ps1 -AdminAlias admin -UsdcSacId CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA -UnitPrice 1000000 -TargetUnits 1000
+.\scripts\deploy-minka-testnet.ps1 -AdminAlias admin -UsdcSacId CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA
 ```
 
-Luego copia `app/.env.example` a `app/.env` y completa `PUBLIC_MINKA_MARKET_ID`, `PUBLIC_USDC_SAC_ID` y `PUBLIC_MINKA_START_LEDGER`.
+Despues, Minka aprueba a la empresa y a los inversionistas desde su consola en el dashboard (o con `set_issuer_status` / `set_investor_status`), y la empresa publica su oferta desde la consola de emisora. Copia `app/.env.example` a `app/.env` y completa `PUBLIC_MINKA_MARKET_ID`, `PUBLIC_USDC_SAC_ID` y `PUBLIC_MINKA_START_LEDGER`.
 
 ## Roadmap inmediato
 
-1. Generar cliente TypeScript y conectar wallet + llamadas del dashboard.
-2. Desplegar contrato y publicar IDs, transacciones y video demo verificables.
-3. Consumir eventos por Stellar RPC para actualizar posiciones en tiempo casi real.
+1. Ejecutar la demo completa en Testnet (publicacion, inversiones, ingreso y claim) y registrar sus transacciones.
+2. Grabar el video demo de dos minutos.
+3. Sustituir el registro manual de ingresos por un oraculo firmado conectado a POS o facturacion.
 
 ## Estructura
 

@@ -1,35 +1,26 @@
-import { type MarketSnapshot } from "./contract"
 import { formatUnits, formatUsdc, percent } from "./format"
 import styles from "./Market.module.css"
+import { type Offering } from "./types"
 
-export function OfferingOverview({ snapshot }: { snapshot?: MarketSnapshot }) {
-	const offering = snapshot?.offering
-	const treasury = snapshot?.treasury
-	const sold = offering?.sold_units ?? 0n
-	const target = offering?.target_units ?? 0n
-	const unitPrice = snapshot?.unitPrice ?? 0n
+export function OfferingOverview({ offering }: { offering: Offering }) {
+	const { sold_units: sold, target_units: target, unit_price: price } = offering
 	const progress = percent(sold, target)
-	const dash = "—"
 
 	const metrics: Array<[string, string, string]> = [
-		[
-			"Precio por unidad",
-			snapshot ? `${formatUsdc(unitPrice)} USDC` : dash,
-			"LUMI-RSN",
-		],
+		["Precio por unidad", `${formatUsdc(price)} USDC`, offering.symbol],
 		[
 			"Capital comprometido",
-			snapshot ? `${formatUsdc(sold * unitPrice)} USDC` : dash,
-			`de ${snapshot ? formatUsdc(target * unitPrice, 0) : dash} USDC objetivo`,
+			`${formatUsdc(sold * price)} USDC`,
+			`de ${formatUsdc(target * price, 0)} USDC objetivo`,
 		],
 		[
 			"Retornos por reclamar",
-			treasury ? `${formatUsdc(treasury.allocated)} USDC` : dash,
+			`${formatUsdc(offering.allocated)} USDC`,
 			"Asignados a inversionistas",
 		],
 		[
 			"Tesorería de distribuciones",
-			treasury ? `${formatUsdc(treasury.available)} USDC` : dash,
+			`${formatUsdc(offering.available)} USDC`,
 			"Fondeada, sin asignar",
 		],
 	]
@@ -39,16 +30,16 @@ export function OfferingOverview({ snapshot }: { snapshot?: MarketSnapshot }) {
 			<section className={styles.offer}>
 				<div>
 					<p className={styles.eyebrow}>
-						{offering?.paused ? "OFERTA PAUSADA" : "OFERTA ACTIVA"}
+						{offering.paused ? "OFERTA PAUSADA" : "OFERTA ACTIVA"}
 					</p>
-					<h2>LumiSolar Perú · LUMI-RSN</h2>
+					<h2>
+						{offering.name} · {offering.symbol}
+					</h2>
 					<p>Participación simulada en ingresos futuros.</p>
 				</div>
 				<div className={styles.progress}>
 					<p>
-						{snapshot
-							? `${formatUnits(sold)} / ${formatUnits(target)} unidades`
-							: "Leyendo contrato…"}{" "}
+						{formatUnits(sold)} / {formatUnits(target)} unidades{" "}
 						<strong>{progress.toFixed(progress < 10 ? 1 : 0)}%</strong>
 					</p>
 					<span

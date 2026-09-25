@@ -15,12 +15,7 @@ import {
 	stellarNetwork,
 } from "@stellar-scaffold/app-lib"
 import { minkaConfig } from "../../lib/minkaConfig"
-import {
-	type MinkaMarketClient,
-	type Offering,
-	type Position,
-	type Treasury,
-} from "./types"
+import { type MinkaMarketClient, type Offering, type Position } from "./types"
 
 const allowHttp = stellarNetwork === "LOCAL"
 export const rpcServer = new rpc.Server(rpcUrl, { allowHttp })
@@ -60,34 +55,49 @@ export async function getMarketClient(
 }
 
 export interface MarketSnapshot {
-	offering: Offering
-	treasury: Treasury
-	unitPrice: bigint
 	admin: string
 	usdc: string
+	offerings: Offering[]
 }
 
 export async function fetchMarketSnapshot(): Promise<MarketSnapshot> {
 	const client = await getMarketClient()
-	const [offering, treasury, unitPrice, admin, usdc] = await Promise.all([
-		client.get_offering(),
-		client.get_treasury(),
-		client.get_unit_price(),
+	const [admin, usdc, offerings] = await Promise.all([
 		client.get_admin(),
 		client.get_usdc(),
+		client.get_offerings(),
 	])
 	return {
-		offering: offering.result,
-		treasury: treasury.result,
-		unitPrice: unitPrice.result,
 		admin: admin.result,
 		usdc: usdc.result,
+		offerings: offerings.result,
 	}
 }
 
-export async function fetchPosition(investor: string): Promise<Position> {
+export async function fetchPosition(
+	offeringId: number,
+	investor: string,
+): Promise<Position> {
 	const client = await getMarketClient()
-	return (await client.get_position({ investor })).result
+	return (await client.get_position({ offering_id: offeringId, investor }))
+		.result
+}
+
+export interface Roles {
+	isIssuer: boolean
+	isInvestorApproved: boolean
+}
+
+export async function fetchRoles(account: string): Promise<Roles> {
+	const client = await getMarketClient()
+	const [isIssuer, isInvestorApproved] = await Promise.all([
+		client.is_issuer({ account }),
+		client.is_investor_approved({ account }),
+	])
+	return {
+		isIssuer: isIssuer.result,
+		isInvestorApproved: isInvestorApproved.result,
+	}
 }
 
 // Any valid G-address works as the source of a read-only simulation.
@@ -136,15 +146,19 @@ const CONTRACT_ERRORS: Record<number, string> = {
 	1: "Configuración de la oferta inválida.",
 	2: "El monto o las unidades deben ser mayores a cero.",
 	3: "La oferta está pausada: no acepta nuevas inversiones.",
-	4: "Tu wallet no está aprobada para invertir en esta oferta.",
+	4: "Tu wallet no está aprobada como inversionista en Minka.",
 	5: "No quedan suficientes unidades disponibles en la oferta.",
-	6: "Solo el administrador puede realizar esta operación.",
+	6: "Solo el administrador de Minka puede realizar esta operación.",
 	7: "El capital levantado disponible no alcanza para ese retiro.",
 	8: "La tesorería de distribuciones no tiene fondos suficientes.",
 	9: "Ese evento de ingresos ya fue registrado.",
 	10: "Aún no hay inversionistas entre quienes distribuir.",
 	11: "No tienes retornos pendientes por reclamar.",
 	12: "El monto excede los límites aritméticos del contrato.",
+	13: "Tu empresa aún no está aprobada como emisora en Minka.",
+	14: "La oferta no existe.",
+	15: "Solo la empresa emisora de esta oferta puede hacer esto.",
+	16: "La oferta ya tiene ventas: el precio es fijo y solo se pueden ampliar las unidades.",
 }
 
 /** Turns wallet, simulation, and contract failures into a readable message. */

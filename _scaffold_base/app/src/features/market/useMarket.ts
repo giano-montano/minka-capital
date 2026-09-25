@@ -7,6 +7,7 @@ import {
 	describeError,
 	fetchMarketSnapshot,
 	fetchPosition,
+	fetchRoles,
 	fetchTokenBalance,
 	getMarketClient,
 	submit,
@@ -17,7 +18,9 @@ const REFRESH_MS = 15_000
 export const marketKeys = {
 	all: ["minka"] as const,
 	snapshot: ["minka", "snapshot"] as const,
-	position: (address?: string) => ["minka", "position", address] as const,
+	position: (offeringId?: number, address?: string) =>
+		["minka", "position", offeringId, address] as const,
+	roles: (address?: string) => ["minka", "roles", address] as const,
 	balance: (token?: string, address?: string) =>
 		["minka", "balance", token, address] as const,
 }
@@ -31,10 +34,23 @@ export function useMarketSnapshot() {
 	})
 }
 
-export function usePosition(address?: string) {
+export function usePosition(offeringId?: number, address?: string) {
 	return useQuery({
-		queryKey: marketKeys.position(address),
-		queryFn: () => fetchPosition(address as string),
+		queryKey: marketKeys.position(offeringId, address),
+		queryFn: () => fetchPosition(offeringId as number, address as string),
+		enabled:
+			minkaConfig.isContractConfigured &&
+			offeringId !== undefined &&
+			Boolean(address),
+		refetchInterval: REFRESH_MS,
+	})
+}
+
+/** Whether the connected wallet is an approved issuer and/or investor. */
+export function useRoles(address?: string) {
+	return useQuery({
+		queryKey: marketKeys.roles(address),
+		queryFn: () => fetchRoles(address as string),
 		enabled: minkaConfig.isContractConfigured && Boolean(address),
 		refetchInterval: REFRESH_MS,
 	})

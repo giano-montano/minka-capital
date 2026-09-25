@@ -1,23 +1,30 @@
 import { connectWallet } from "@stellar-scaffold/app-lib"
 import { useState } from "react"
 import { useWallet } from "../../hooks/useWallet"
-import { type MarketSnapshot } from "./contract"
 import { formatUnits, formatUsdc } from "./format"
 import styles from "./Market.module.css"
+import { type Offering } from "./types"
 import {
 	submit,
 	useMarketAction,
 	usePosition,
+	useRoles,
 	useTokenBalance,
 } from "./useMarket"
 
-export function InvestorPanel({ snapshot }: { snapshot?: MarketSnapshot }) {
+interface Props {
+	offering: Offering
+	usdc: string
+}
+
+export function InvestorPanel({ offering, usdc }: Props) {
 	const { address } = useWallet()
-	const position = usePosition(address)
-	const balance = useTokenBalance(snapshot?.usdc, address)
+	const roles = useRoles(address)
+	const position = usePosition(offering.id, address)
+	const balance = useTokenBalance(usdc, address)
 	const [unitsInput, setUnitsInput] = useState("10")
 
-	const invest = useMarketAction("Inversión registrada on-chain")
+	const invest = useMarketAction(`Inversión en ${offering.symbol} registrada`)
 	const claim = useMarketAction("Retorno reclamado en USDC")
 
 	if (!address) {
@@ -41,22 +48,19 @@ export function InvestorPanel({ snapshot }: { snapshot?: MarketSnapshot }) {
 	}
 
 	const units = /^\d+$/.test(unitsInput) ? BigInt(unitsInput) : 0n
-	const unitPrice = snapshot?.unitPrice ?? 0n
-	const cost = units * unitPrice
-	const remaining = snapshot
-		? snapshot.offering.target_units - snapshot.offering.sold_units
-		: 0n
-	const approved = position.data?.approved ?? false
+	const cost = units * offering.unit_price
+	const remaining = offering.target_units - offering.sold_units
+	const approved = roles.data?.isInvestorApproved ?? false
 	const claimable = position.data?.claimable ?? 0n
 
 	// Pre-flight checks mirror the contract's rules so users see why a
 	// transaction would fail before being asked to sign it.
-	const investBlocker = !snapshot
-		? "Cargando la oferta…"
-		: snapshot.offering.paused
+	const investBlocker = !roles.data
+		? "Verificando tu wallet…"
+		: offering.paused
 			? "La oferta está pausada."
 			: !approved
-				? "Tu wallet aún no está en la allowlist de la oferta."
+				? "Tu wallet aún no está aprobada como inversionista en Minka."
 				: units <= 0n
 					? "Ingresa un número entero de unidades."
 					: units > remaining
@@ -67,9 +71,11 @@ export function InvestorPanel({ snapshot }: { snapshot?: MarketSnapshot }) {
 
 	return (
 		<article className={styles.panel}>
-			<p className={styles.eyebrow}>POSICIÓN DEL INVERSIONISTA</p>
+			<p className={styles.eyebrow}>
+				TU POSICIÓN EN {offering.symbol.toUpperCase()}
+			</p>
 			<h2>
-				{approved ? "Wallet aprobada" : "Wallet no aprobada"}
+				{approved ? "Inversionista aprobado" : "Wallet no aprobada"}
 				<span className={approved ? styles.badgeOk : styles.badgeWarn}>
 					{approved ? "allowlist" : "pendiente"}
 				</span>
@@ -77,7 +83,7 @@ export function InvestorPanel({ snapshot }: { snapshot?: MarketSnapshot }) {
 
 			<div className={styles.position}>
 				<div>
-					<span>Unidades LUMI-RSN</span>
+					<span>Unidades {offering.symbol}</span>
 					<strong>
 						{position.data ? formatUnits(position.data.units) : "—"}
 					</strong>
@@ -102,7 +108,7 @@ export function InvestorPanel({ snapshot }: { snapshot?: MarketSnapshot }) {
 				disabled={claimable <= 0n || claim.isPending}
 				onClick={() =>
 					claim.mutate(async (client, investor) =>
-						submit(await client.claim({ investor })),
+						submit(await client.claim({ investor, offering_id: offering.id })),
 					)
 				}
 			>
@@ -115,7 +121,13 @@ export function InvestorPanel({ snapshot }: { snapshot?: MarketSnapshot }) {
 					event.preventDefault()
 					if (investBlocker) return
 					invest.mutate(async (client, investor) =>
-						submit(await client.invest({ investor, units })),
+						submit(
+							await client.invest({
+								investor,
+								offering_id: offering.id,
+								units,
+							}),
+						),
 					)
 				}}
 			>
@@ -128,7 +140,8 @@ export function InvestorPanel({ snapshot }: { snapshot?: MarketSnapshot }) {
 					/>
 				</label>
 				<p className={styles.muted}>
-					Costo: <strong>{formatUsdc(cost)} USDC</strong>
+					Costo: <strong>{formatUsdc(cost)} USDC</strong> (
+					{formatUsdc(offering.unit_price)} USDC por unidad)
 				</p>
 				<button
 					type="submit"
@@ -136,7 +149,7 @@ export function InvestorPanel({ snapshot }: { snapshot?: MarketSnapshot }) {
 				>
 					{invest.isPending ? "Firmando inversión…" : "Invertir"}
 				</button>
-				{investBlocker && (
+				{investBlocker && !invest.isPending && (
 					<small className={styles.hint}>{investBlocker}</small>
 				)}
 			</form>

@@ -1,25 +1,53 @@
-import { useCallback } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useWallet } from "../../hooks/useWallet"
 import { minkaConfig } from "../../lib/minkaConfig"
-import { AdminPanel } from "./AdminPanel"
 import { describeError } from "./contract"
 import { EventFeed } from "./EventFeed"
 import { shortId } from "./format"
 import { InvestorPanel } from "./InvestorPanel"
+import { IssuerPanel } from "./IssuerPanel"
 import styles from "./Market.module.css"
+import { OfferingCatalog } from "./OfferingCatalog"
 import { OfferingOverview } from "./OfferingOverview"
-import { useMarketSnapshot, useRefreshMarket } from "./useMarket"
+import { PlatformAdminPanel } from "./PlatformAdminPanel"
+import { type Offering } from "./types"
+import { useMarketSnapshot, useRefreshMarket, useRoles } from "./useMarket"
 import { useMarketEvents } from "./useMarketEvents"
+
+const NO_OFFERINGS: Offering[] = []
 
 export function MarketDashboard() {
 	const { address } = useWallet()
 	const snapshot = useMarketSnapshot()
+	const roles = useRoles(address)
 	const refresh = useRefreshMarket()
 	// Every new on-chain event re-reads contract state, so balances and
 	// claimable returns update without a page reload.
 	const onNewEvents = useCallback(() => void refresh(), [refresh])
 	const feed = useMarketEvents(onNewEvents)
-	const isAdmin = Boolean(address && snapshot.data?.admin === address)
+
+	const offerings = snapshot.data?.offerings ?? NO_OFFERINGS
+	const [selectedId, setSelectedId] = useState<number>()
+	const selectNewest = useRef(false)
+
+	useEffect(() => {
+		if (offerings.length === 0) return
+		const newest = offerings[offerings.length - 1]
+		if (selectNewest.current && newest) {
+			selectNewest.current = false
+			setSelectedId(newest.id)
+		} else if (
+			selectedId === undefined ||
+			!offerings.some((o) => o.id === selectedId)
+		) {
+			setSelectedId(offerings[0]?.id)
+		}
+	}, [offerings, selectedId])
+
+	const selected = offerings.find((o) => o.id === selectedId)
+	const isPlatformAdmin = Boolean(address && snapshot.data?.admin === address)
+	const isIssuer = Boolean(address && roles.data?.isIssuer)
+	const ownOfferings = offerings.filter((o) => o.issuer === address)
 
 	return (
 		<div className={styles.dashboard}>
@@ -34,8 +62,9 @@ export function MarketDashboard() {
 						liquidado con cada venta.
 					</h1>
 					<p>
-						Minka Capital convierte ingresos verificables en retornos
-						programables para inversionistas de startups peruanas.
+						Startups peruanas publican participaciones en sus ingresos futuros;
+						los inversionistas reciben retornos programables cada vez que la
+						empresa vende.
 					</p>
 				</div>
 				<aside>
@@ -72,32 +101,72 @@ export function MarketDashboard() {
 							No se pudo leer el contrato: {describeError(snapshot.error)}
 						</p>
 					)}
-					<OfferingOverview snapshot={snapshot.data} />
-					<section className={styles.columns}>
-						<InvestorPanel snapshot={snapshot.data} />
-						<article className={styles.panel}>
-							<p className={styles.eyebrow}>CÓMO FUNCIONA</p>
-							<h2>Del ingreso al retorno</h2>
-							<ol className={styles.steps}>
-								<li>Wallets aprobadas compran unidades con USDC Testnet.</li>
-								<li>
-									LumiSolar reporta una venta; el operador la registra con un{" "}
-									<code>event_id</code> único (anti-replay).
-								</li>
-								<li>
-									El contrato reparte el monto pro-rata por unidad y emite{" "}
-									<code>revenue_recorded</code>.
-								</li>
-								<li>
-									Este dashboard lo recibe vía RPC y actualiza tu saldo
-									reclamable al instante.
-								</li>
-							</ol>
-						</article>
-					</section>
-					{isAdmin && snapshot.data && <AdminPanel snapshot={snapshot.data} />}
+
+					{offerings.length > 0 ? (
+						<OfferingCatalog
+							offerings={offerings}
+							selectedId={selectedId}
+							onSelect={setSelectedId}
+						/>
+					) : (
+						snapshot.data && (
+							<section className={styles.panel}>
+								<p className={styles.eyebrow}>SIN OFERTAS</p>
+								<h2>Aún no hay ofertas publicadas</h2>
+								<p className={styles.muted}>
+									Una empresa aprobada por Minka puede publicar la primera desde
+									su consola.
+								</p>
+							</section>
+						)
+					)}
+
+					{selected && snapshot.data && (
+						<>
+							<OfferingOverview offering={selected} />
+							<section className={styles.columns}>
+								<InvestorPanel offering={selected} usdc={snapshot.data.usdc} />
+								<article className={styles.panel}>
+									<p className={styles.eyebrow}>CÓMO FUNCIONA</p>
+									<h2>Del ingreso al retorno</h2>
+									<ol className={styles.steps}>
+										<li>
+											Minka aprueba a la empresa emisora y a los inversionistas.
+										</li>
+										<li>
+											La empresa publica su oferta: precio por unidad y unidades
+											a emitir.
+										</li>
+										<li>
+											Inversionistas aprobados compran unidades con USDC
+											Testnet.
+										</li>
+										<li>
+											La empresa registra cada venta con un{" "}
+											<code>event_id</code> único; el contrato la reparte
+											pro-rata y este dashboard lo muestra al instante vía RPC.
+										</li>
+									</ol>
+								</article>
+							</section>
+						</>
+					)}
+
+					{isIssuer && address && (
+						<IssuerPanel
+							address={address}
+							ownOfferings={ownOfferings}
+							selected={selected}
+							onCreated={() => {
+								selectNewest.current = true
+							}}
+						/>
+					)}
+					{isPlatformAdmin && <PlatformAdminPanel />}
+
 					<EventFeed
 						events={feed.events}
+						offerings={offerings}
 						isLoading={feed.isLoading}
 						error={feed.error}
 						lastSyncedLedger={feed.lastSyncedLedger}

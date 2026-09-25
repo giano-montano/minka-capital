@@ -1,11 +1,13 @@
 #![no_std]
 
 use soroban_sdk::{
-    Address, Env, MuxedAddress, contract, contracterror, contractevent, contractimpl, contracttype,
-    panic_with_error, token,
+    Address, Env, MuxedAddress, String, Vec, contract, contracterror, contractevent, contractimpl,
+    contracttype, panic_with_error, token,
 };
 
 const SCALE: i128 = 10_000_000;
+const MAX_NAME_LEN: u32 = 64;
+const MAX_SYMBOL_LEN: u32 = 12;
 
 // ~5s ledgers: keep state alive for 30 days, bumping once less than 7 days remain.
 const DAY_IN_LEDGERS: u32 = 17_280;
@@ -29,6 +31,10 @@ pub enum Error {
     NoInvestors = 10,
     NothingToClaim = 11,
     ArithmeticOverflow = 12,
+    IssuerNotApproved = 13,
+    OfferingNotFound = 14,
+    NotIssuer = 15,
+    OfferingLocked = 16,
 }
 
 fn ensure(env: &Env, condition: bool, error: Error) {
@@ -42,37 +48,32 @@ fn ensure(env: &Env, condition: bool, error: Error) {
 pub enum DataKey {
     Admin,
     Usdc,
-    UnitPrice,
-    Treasury,
-    Offering,
-    Position(Address),
-    RevenueEvent(u64),
+    OfferingCount,
+    Issuer(Address),
+    Investor(Address),
+    Offering(u32),
+    Position(u32, Address),
+    RevenueEvent(u32, u64),
 }
 
+/// A primary offering published by an approved issuer (the startup).
+///
+/// Every token the contract holds for an offering sits in exactly one of its
+/// three treasury buckets, so offering capital never backs a distribution and
+/// one offering's funds never pay another's investors.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Offering {
+    pub id: u32,
+    pub issuer: Address,
+    pub name: String,
+    pub symbol: String,
+    pub unit_price: i128,
     pub target_units: i128,
     pub sold_units: i128,
     pub revenue_per_unit_scaled: i128,
     pub paused: bool,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Position {
-    pub approved: bool,
-    pub units: i128,
-    pub revenue_checkpoint_scaled: i128,
-    pub claimable: i128,
-}
-
-/// Segregated contract balances: every token held by the contract belongs to
-/// exactly one bucket, so offering capital can never back a distribution.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Treasury {
-    /// Investment capital not yet withdrawn to the startup.
+    /// Investment capital not yet withdrawn by the issuer.
     pub raised: i128,
     /// Funded distributions not yet assigned to a revenue event.
     pub available: i128,
@@ -81,15 +82,19 @@ pub struct Treasury {
     pub allocated: i128,
 }
 
-#[contractevent]
-pub struct OfferingCreated {
-    pub target_units: i128,
-    pub unit_price: i128,
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Position {
+    pub units: i128,
+    pub revenue_checkpoint_scaled: i128,
+    pub claimable: i128,
 }
 
 #[contractevent]
-pub struct OfferingPauseChanged {
-    pub paused: bool,
+pub struct IssuerStatusChanged {
+    #[topic]
+    pub issuer: Address,
+    pub approved: bool,
 }
 
 #[contractevent]
@@ -100,7 +105,36 @@ pub struct InvestorStatusChanged {
 }
 
 #[contractevent]
+pub struct OfferingCreated {
+    #[topic]
+    pub offering_id: u32,
+    #[topic]
+    pub issuer: Address,
+    pub name: String,
+    pub symbol: String,
+    pub unit_price: i128,
+    pub target_units: i128,
+}
+
+#[contractevent]
+pub struct OfferingUpdated {
+    #[topic]
+    pub offering_id: u32,
+    pub unit_price: i128,
+    pub target_units: i128,
+}
+
+#[contractevent]
+pub struct OfferingPauseChanged {
+    #[topic]
+    pub offering_id: u32,
+    pub paused: bool,
+}
+
+#[contractevent]
 pub struct InvestmentRecorded {
+    #[topic]
+    pub offering_id: u32,
     #[topic]
     pub investor: Address,
     pub units: i128,
@@ -110,17 +144,23 @@ pub struct InvestmentRecorded {
 #[contractevent]
 pub struct RaiseWithdrawn {
     #[topic]
+    pub offering_id: u32,
+    #[topic]
     pub to: Address,
     pub amount: i128,
 }
 
 #[contractevent]
 pub struct DistributionFunded {
+    #[topic]
+    pub offering_id: u32,
     pub amount: i128,
 }
 
 #[contractevent]
 pub struct RevenueRecorded {
+    #[topic]
+    pub offering_id: u32,
     #[topic]
     pub event_id: u64,
     pub amount: i128,
@@ -128,6 +168,8 @@ pub struct RevenueRecorded {
 
 #[contractevent]
 pub struct ClaimRecorded {
+    #[topic]
+    pub offering_id: u32,
     #[topic]
     pub investor: Address,
     pub amount: i128,
@@ -138,182 +180,232 @@ pub struct MinkaMarket;
 
 #[contractimpl]
 impl MinkaMarket {
-    /// Creates a Testnet-only primary offering backed by a configured SAC asset.
-    /// Runs atomically with deployment, so no one can initialize it first.
-    pub fn __constructor(
-        env: Env,
-        admin: Address,
-        usdc: Address,
-        unit_price: i128,
-        target_units: i128,
-    ) {
-        ensure(&env, target_units > 0, Error::InvalidConfig);
-        ensure(&env, unit_price > 0, Error::InvalidConfig);
-
+    /// Configures the Testnet-only platform and its settlement asset. Runs
+    /// atomically with deployment, so no one can initialize it first.
+    pub fn __constructor(env: Env, admin: Address, usdc: Address) {
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Usdc, &usdc);
         env.storage()
             .instance()
-            .set(&DataKey::UnitPrice, &unit_price);
-        Self::save_treasury(
-            &env,
-            &Treasury {
-                raised: 0,
-                available: 0,
-                allocated: 0,
-            },
-        );
-        Self::save_offering(
-            &env,
-            &Offering {
-                target_units,
-                sold_units: 0,
-                revenue_per_unit_scaled: 0,
-                paused: false,
-            },
-        );
+            .set(&DataKey::OfferingCount, &0_u32);
         Self::extend_instance(&env);
-        OfferingCreated {
-            target_units,
-            unit_price,
-        }
-        .publish(&env);
     }
 
+    // ---------------------------------------------------------------------
+    // Platform administration (Minka)
+    // ---------------------------------------------------------------------
+
+    /// Approves or revokes a company that may publish offerings.
+    pub fn set_issuer_status(env: Env, admin: Address, issuer: Address, approved: bool) {
+        Self::require_admin(&env, &admin);
+        Self::save_flag(&env, DataKey::Issuer(issuer.clone()), approved);
+        IssuerStatusChanged { issuer, approved }.publish(&env);
+    }
+
+    /// Approves or revokes an investor wallet for every offering (demo KYC).
     pub fn set_investor_status(env: Env, admin: Address, investor: Address, approved: bool) {
-        Self::admin(&env, &admin);
-        let mut position = Self::position(&env, &investor);
-        position.approved = approved;
-        Self::save_position(&env, &investor, &position);
+        Self::require_admin(&env, &admin);
+        Self::save_flag(&env, DataKey::Investor(investor.clone()), approved);
         InvestorStatusChanged { investor, approved }.publish(&env);
     }
 
-    /// Stops or resumes new investments. Claims keep working while paused.
-    pub fn set_paused(env: Env, admin: Address, paused: bool) {
-        Self::admin(&env, &admin);
-        let mut offering = Self::offering(&env);
-        offering.paused = paused;
-        Self::save_offering(&env, &offering);
-        OfferingPauseChanged { paused }.publish(&env);
-    }
+    // ---------------------------------------------------------------------
+    // Issuer operations (the startup)
+    // ---------------------------------------------------------------------
 
-    /// Escrows the configured Testnet SAC asset for a primary-market investment.
-    pub fn invest(env: Env, investor: Address, units: i128) {
-        investor.require_auth();
-        ensure(&env, units > 0, Error::InvalidAmount);
-
-        let mut offering = Self::offering(&env);
-        ensure(&env, !offering.paused, Error::OfferingPaused);
-        let mut position = Self::position(&env, &investor);
-        ensure(&env, position.approved, Error::InvestorNotApproved);
-        let sold_units = offering
-            .sold_units
-            .checked_add(units)
-            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
+    /// Publishes a new revenue-share offering and returns its id.
+    pub fn create_offering(
+        env: Env,
+        issuer: Address,
+        name: String,
+        symbol: String,
+        unit_price: i128,
+        target_units: i128,
+    ) -> u32 {
+        issuer.require_auth();
         ensure(
             &env,
-            sold_units <= offering.target_units,
-            Error::OfferingOversubscribed,
+            Self::flag(&env, &DataKey::Issuer(issuer.clone())),
+            Error::IssuerNotApproved,
+        );
+        ensure(
+            &env,
+            name.len() > 0 && name.len() <= MAX_NAME_LEN,
+            Error::InvalidConfig,
+        );
+        ensure(
+            &env,
+            symbol.len() > 0 && symbol.len() <= MAX_SYMBOL_LEN,
+            Error::InvalidConfig,
+        );
+        ensure(
+            &env,
+            unit_price > 0 && target_units > 0,
+            Error::InvalidConfig,
         );
 
-        let payment = units
-            .checked_mul(Self::unit_price(&env))
-            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
-        Self::token(&env).transfer(
-            &investor,
-            &MuxedAddress::from(env.current_contract_address()),
-            &payment,
-        );
-
-        Self::settle_position(&mut position, offering.revenue_per_unit_scaled);
-        position.units += units;
-        offering.sold_units = sold_units;
-
-        let mut treasury = Self::treasury(&env);
-        treasury.raised = treasury
-            .raised
-            .checked_add(payment)
-            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
-
-        Self::save_position(&env, &investor, &position);
+        let id: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::OfferingCount)
+            .unwrap_or(0);
+        let offering = Offering {
+            id,
+            issuer: issuer.clone(),
+            name: name.clone(),
+            symbol: symbol.clone(),
+            unit_price,
+            target_units,
+            sold_units: 0,
+            revenue_per_unit_scaled: 0,
+            paused: false,
+            raised: 0,
+            available: 0,
+            allocated: 0,
+        };
         Self::save_offering(&env, &offering);
-        Self::save_treasury(&env, &treasury);
-        InvestmentRecorded {
-            investor,
-            units,
-            amount: payment,
+        env.storage()
+            .instance()
+            .set(&DataKey::OfferingCount, &(id + 1));
+        OfferingCreated {
+            offering_id: id,
+            issuer,
+            name,
+            symbol,
+            unit_price,
+            target_units,
+        }
+        .publish(&env);
+        id
+    }
+
+    /// Adjusts price and size. Before the first sale both are free to change;
+    /// afterwards the price is locked (every investor pays the same) and the
+    /// offering can only grow.
+    pub fn update_offering(
+        env: Env,
+        issuer: Address,
+        offering_id: u32,
+        unit_price: i128,
+        target_units: i128,
+    ) {
+        let mut offering = Self::offering_for_issuer(&env, &issuer, offering_id);
+        ensure(
+            &env,
+            unit_price > 0 && target_units > 0,
+            Error::InvalidConfig,
+        );
+        if offering.sold_units > 0 {
+            ensure(
+                &env,
+                unit_price == offering.unit_price && target_units >= offering.target_units,
+                Error::OfferingLocked,
+            );
+        }
+        offering.unit_price = unit_price;
+        offering.target_units = target_units;
+        Self::save_offering(&env, &offering);
+        OfferingUpdated {
+            offering_id,
+            unit_price,
+            target_units,
         }
         .publish(&env);
     }
 
-    /// Releases raised offering capital to the startup's wallet. Distribution
-    /// funds are never touched.
-    pub fn withdraw_raise(env: Env, admin: Address, to: Address, amount: i128) {
-        Self::admin(&env, &admin);
-        ensure(&env, amount > 0, Error::InvalidAmount);
-
-        let mut treasury = Self::treasury(&env);
+    /// Stops or resumes new investments. Claims keep working while paused.
+    /// Callable by the issuer or by the platform admin.
+    pub fn set_paused(env: Env, caller: Address, offering_id: u32, paused: bool) {
+        caller.require_auth();
+        let mut offering = Self::offering(&env, offering_id);
         ensure(
             &env,
-            treasury.raised >= amount,
+            caller == offering.issuer || caller == Self::admin(&env),
+            Error::NotIssuer,
+        );
+        offering.paused = paused;
+        Self::save_offering(&env, &offering);
+        OfferingPauseChanged {
+            offering_id,
+            paused,
+        }
+        .publish(&env);
+    }
+
+    /// Releases raised capital to the issuer's chosen wallet. Distribution
+    /// funds are never touched.
+    pub fn withdraw_raise(env: Env, issuer: Address, offering_id: u32, to: Address, amount: i128) {
+        let mut offering = Self::offering_for_issuer(&env, &issuer, offering_id);
+        ensure(&env, amount > 0, Error::InvalidAmount);
+        ensure(
+            &env,
+            offering.raised >= amount,
             Error::InsufficientRaisedCapital,
         );
-        treasury.raised -= amount;
-        Self::save_treasury(&env, &treasury);
+        offering.raised -= amount;
+        Self::save_offering(&env, &offering);
 
         Self::token(&env).transfer(
             &env.current_contract_address(),
             &MuxedAddress::from(to.clone()),
             &amount,
         );
-        RaiseWithdrawn { to, amount }.publish(&env);
+        RaiseWithdrawn {
+            offering_id,
+            to,
+            amount,
+        }
+        .publish(&env);
     }
 
-    /// Deposits Testnet USDC that backs future pro-rata claims without touching
-    /// primary-offering capital.
-    pub fn fund_distributions(env: Env, admin: Address, amount: i128) {
-        Self::admin(&env, &admin);
+    /// Deposits USDC that backs future pro-rata claims for one offering.
+    pub fn fund_distributions(env: Env, issuer: Address, offering_id: u32, amount: i128) {
+        let mut offering = Self::offering_for_issuer(&env, &issuer, offering_id);
         ensure(&env, amount > 0, Error::InvalidAmount);
 
         Self::token(&env).transfer(
-            &admin,
+            &issuer,
             &MuxedAddress::from(env.current_contract_address()),
             &amount,
         );
-
-        let mut treasury = Self::treasury(&env);
-        treasury.available = treasury
+        offering.available = offering
             .available
             .checked_add(amount)
             .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
-        Self::save_treasury(&env, &treasury);
-        DistributionFunded { amount }.publish(&env);
+        Self::save_offering(&env, &offering);
+        DistributionFunded {
+            offering_id,
+            amount,
+        }
+        .publish(&env);
     }
 
-    /// Accepts one funded, idempotent revenue event and makes its return claimable
-    /// pro-rata. The amount moves from `available` to `allocated`, so a single
-    /// deposit can never back two revenue events.
-    pub fn record_revenue(env: Env, admin: Address, event_id: u64, amount: i128) {
-        Self::admin(&env, &admin);
+    /// Accepts one funded, idempotent revenue event and makes its return
+    /// claimable pro-rata. The amount moves from `available` to `allocated`,
+    /// so a single deposit can never back two revenue events.
+    pub fn record_revenue(
+        env: Env,
+        issuer: Address,
+        offering_id: u32,
+        event_id: u64,
+        amount: i128,
+    ) {
+        let mut offering = Self::offering_for_issuer(&env, &issuer, offering_id);
         ensure(&env, amount > 0, Error::InvalidAmount);
-        let event_key = DataKey::RevenueEvent(event_id);
+        let event_key = DataKey::RevenueEvent(offering_id, event_id);
         ensure(
             &env,
             !env.storage().persistent().has(&event_key),
             Error::DuplicateRevenueEvent,
         );
-
-        let mut offering = Self::offering(&env);
         ensure(&env, offering.sold_units > 0, Error::NoInvestors);
-        let mut treasury = Self::treasury(&env);
         ensure(
             &env,
-            treasury.available >= amount,
+            offering.available >= amount,
             Error::InsufficientDistributionFunds,
         );
-        treasury.available -= amount;
-        treasury.allocated += amount;
-
+        offering.available -= amount;
+        offering.allocated += amount;
         let increment = amount
             .checked_mul(SCALE)
             .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow))
@@ -325,105 +417,230 @@ impl MinkaMarket {
             .persistent()
             .extend_ttl(&event_key, TTL_THRESHOLD, TTL_EXTEND_TO);
         Self::save_offering(&env, &offering);
-        Self::save_treasury(&env, &treasury);
-        RevenueRecorded { event_id, amount }.publish(&env);
+        RevenueRecorded {
+            offering_id,
+            event_id,
+            amount,
+        }
+        .publish(&env);
     }
 
-    /// Settles accounting and transfers the backed Testnet SAC amount to the wallet.
-    pub fn claim(env: Env, investor: Address) -> i128 {
+    // ---------------------------------------------------------------------
+    // Investor operations
+    // ---------------------------------------------------------------------
+
+    /// Escrows the configured Testnet SAC asset for a primary-market investment.
+    pub fn invest(env: Env, investor: Address, offering_id: u32, units: i128) {
         investor.require_auth();
-        let offering = Self::offering(&env);
-        let mut position = Self::position(&env, &investor);
+        ensure(&env, units > 0, Error::InvalidAmount);
+        ensure(
+            &env,
+            Self::flag(&env, &DataKey::Investor(investor.clone())),
+            Error::InvestorNotApproved,
+        );
+
+        let mut offering = Self::offering(&env, offering_id);
+        ensure(&env, !offering.paused, Error::OfferingPaused);
+        let sold_units = offering
+            .sold_units
+            .checked_add(units)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
+        ensure(
+            &env,
+            sold_units <= offering.target_units,
+            Error::OfferingOversubscribed,
+        );
+        let payment = units
+            .checked_mul(offering.unit_price)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
+
+        Self::token(&env).transfer(
+            &investor,
+            &MuxedAddress::from(env.current_contract_address()),
+            &payment,
+        );
+
+        let mut position = Self::position(&env, offering_id, &investor);
+        Self::settle_position(&mut position, offering.revenue_per_unit_scaled);
+        position.units += units;
+        offering.sold_units = sold_units;
+        offering.raised = offering
+            .raised
+            .checked_add(payment)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
+
+        Self::save_position(&env, offering_id, &investor, &position);
+        Self::save_offering(&env, &offering);
+        InvestmentRecorded {
+            offering_id,
+            investor,
+            units,
+            amount: payment,
+        }
+        .publish(&env);
+    }
+
+    /// Settles accounting and transfers the backed USDC amount to the wallet.
+    pub fn claim(env: Env, investor: Address, offering_id: u32) -> i128 {
+        investor.require_auth();
+        let mut offering = Self::offering(&env, offering_id);
+        let mut position = Self::position(&env, offering_id, &investor);
         Self::settle_position(&mut position, offering.revenue_per_unit_scaled);
 
         let amount = position.claimable;
         ensure(&env, amount > 0, Error::NothingToClaim);
-        let mut treasury = Self::treasury(&env);
         ensure(
             &env,
-            treasury.allocated >= amount,
+            offering.allocated >= amount,
             Error::InsufficientDistributionFunds,
         );
-        treasury.allocated -= amount;
+        offering.allocated -= amount;
         position.claimable = 0;
-        Self::save_position(&env, &investor, &position);
-        Self::save_treasury(&env, &treasury);
+        Self::save_position(&env, offering_id, &investor, &position);
+        Self::save_offering(&env, &offering);
 
         Self::token(&env).transfer(
             &env.current_contract_address(),
             &MuxedAddress::from(investor.clone()),
             &amount,
         );
-        ClaimRecorded { investor, amount }.publish(&env);
+        ClaimRecorded {
+            offering_id,
+            investor,
+            amount,
+        }
+        .publish(&env);
         amount
     }
 
+    // ---------------------------------------------------------------------
+    // Reads
+    // ---------------------------------------------------------------------
+
     pub fn get_admin(env: Env) -> Address {
-        env.storage().instance().get(&DataKey::Admin).unwrap()
-    }
-
-    pub fn get_offering(env: Env) -> Offering {
-        Self::offering(&env)
-    }
-
-    pub fn get_position(env: Env, investor: Address) -> Position {
-        let offering = Self::offering(&env);
-        let mut position = Self::position(&env, &investor);
-        Self::settle_position(&mut position, offering.revenue_per_unit_scaled);
-        position
-    }
-
-    pub fn get_treasury(env: Env) -> Treasury {
-        Self::treasury(&env)
+        Self::admin(&env)
     }
 
     pub fn get_usdc(env: Env) -> Address {
         Self::usdc(&env)
     }
 
-    pub fn get_unit_price(env: Env) -> i128 {
-        Self::unit_price(&env)
+    pub fn get_offering_count(env: Env) -> u32 {
+        env.storage()
+            .instance()
+            .get(&DataKey::OfferingCount)
+            .unwrap_or(0)
     }
 
-    pub fn is_revenue_event_processed(env: Env, event_id: u64) -> bool {
+    pub fn get_offering(env: Env, offering_id: u32) -> Offering {
+        Self::offering(&env, offering_id)
+    }
+
+    /// Every offering, oldest first. Sized for a demo catalogue.
+    pub fn get_offerings(env: Env) -> Vec<Offering> {
+        let mut offerings = Vec::new(&env);
+        for id in 0..Self::get_offering_count(env.clone()) {
+            offerings.push_back(Self::offering(&env, id));
+        }
+        offerings
+    }
+
+    pub fn get_position(env: Env, offering_id: u32, investor: Address) -> Position {
+        let offering = Self::offering(&env, offering_id);
+        let mut position = Self::position(&env, offering_id, &investor);
+        Self::settle_position(&mut position, offering.revenue_per_unit_scaled);
+        position
+    }
+
+    pub fn is_issuer(env: Env, account: Address) -> bool {
+        Self::flag(&env, &DataKey::Issuer(account))
+    }
+
+    pub fn is_investor_approved(env: Env, account: Address) -> bool {
+        Self::flag(&env, &DataKey::Investor(account))
+    }
+
+    pub fn is_revenue_event_processed(env: Env, offering_id: u32, event_id: u64) -> bool {
         env.storage()
             .persistent()
-            .has(&DataKey::RevenueEvent(event_id))
+            .has(&DataKey::RevenueEvent(offering_id, event_id))
     }
 
-    fn admin(env: &Env, supplied_admin: &Address) {
-        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
-        ensure(env, admin == *supplied_admin, Error::NotAdmin);
+    // ---------------------------------------------------------------------
+    // Internals
+    // ---------------------------------------------------------------------
+
+    fn admin(env: &Env) -> Address {
+        env.storage().instance().get(&DataKey::Admin).unwrap()
+    }
+
+    fn require_admin(env: &Env, supplied_admin: &Address) {
+        ensure(env, Self::admin(env) == *supplied_admin, Error::NotAdmin);
         supplied_admin.require_auth();
     }
 
-    fn token(env: &Env) -> token::TokenClient<'_> {
-        token::TokenClient::new(env, &Self::usdc(env))
-    }
-
-    fn offering(env: &Env) -> Offering {
-        env.storage().instance().get(&DataKey::Offering).unwrap()
+    /// Loads an offering and checks that `issuer` owns it and signed the call.
+    fn offering_for_issuer(env: &Env, issuer: &Address, offering_id: u32) -> Offering {
+        issuer.require_auth();
+        let offering = Self::offering(env, offering_id);
+        ensure(env, offering.issuer == *issuer, Error::NotIssuer);
+        offering
     }
 
     fn usdc(env: &Env) -> Address {
         env.storage().instance().get(&DataKey::Usdc).unwrap()
     }
 
-    fn unit_price(env: &Env) -> i128 {
-        env.storage().instance().get(&DataKey::UnitPrice).unwrap()
+    fn token(env: &Env) -> token::TokenClient<'_> {
+        token::TokenClient::new(env, &Self::usdc(env))
     }
 
-    fn treasury(env: &Env) -> Treasury {
-        env.storage().instance().get(&DataKey::Treasury).unwrap()
-    }
-
-    fn save_treasury(env: &Env, treasury: &Treasury) {
-        env.storage().instance().set(&DataKey::Treasury, treasury);
-        Self::extend_instance(env);
+    fn offering(env: &Env, offering_id: u32) -> Offering {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Offering(offering_id))
+            .unwrap_or_else(|| panic_with_error!(env, Error::OfferingNotFound))
     }
 
     fn save_offering(env: &Env, offering: &Offering) {
-        env.storage().instance().set(&DataKey::Offering, offering);
+        Self::save_persistent(env, &DataKey::Offering(offering.id), offering);
+    }
+
+    fn flag(env: &Env, key: &DataKey) -> bool {
+        env.storage().persistent().get(key).unwrap_or(false)
+    }
+
+    fn save_flag(env: &Env, key: DataKey, value: bool) {
+        Self::save_persistent(env, &key, &value);
+    }
+
+    fn position(env: &Env, offering_id: u32, investor: &Address) -> Position {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Position(offering_id, investor.clone()))
+            .unwrap_or(Position {
+                units: 0,
+                revenue_checkpoint_scaled: 0,
+                claimable: 0,
+            })
+    }
+
+    fn save_position(env: &Env, offering_id: u32, investor: &Address, position: &Position) {
+        Self::save_persistent(
+            env,
+            &DataKey::Position(offering_id, investor.clone()),
+            position,
+        );
+    }
+
+    fn save_persistent<V>(env: &Env, key: &DataKey, value: &V)
+    where
+        V: soroban_sdk::IntoVal<Env, soroban_sdk::Val>,
+    {
+        env.storage().persistent().set(key, value);
+        env.storage()
+            .persistent()
+            .extend_ttl(key, TTL_THRESHOLD, TTL_EXTEND_TO);
         Self::extend_instance(env);
     }
 
@@ -431,27 +648,6 @@ impl MinkaMarket {
         env.storage()
             .instance()
             .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
-    }
-
-    fn position(env: &Env, investor: &Address) -> Position {
-        env.storage()
-            .persistent()
-            .get(&DataKey::Position(investor.clone()))
-            .unwrap_or(Position {
-                approved: false,
-                units: 0,
-                revenue_checkpoint_scaled: 0,
-                claimable: 0,
-            })
-    }
-
-    fn save_position(env: &Env, investor: &Address, position: &Position) {
-        let key = DataKey::Position(investor.clone());
-        env.storage().persistent().set(&key, position);
-        env.storage()
-            .persistent()
-            .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
-        Self::extend_instance(env);
     }
 
     fn settle_position(position: &mut Position, revenue_per_unit_scaled: i128) {
