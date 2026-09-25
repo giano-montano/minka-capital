@@ -28,6 +28,7 @@ lerna-debug.log*
 .env
 .env.*
 !.env.example
+!.env.production
 
 # easy way to create temporary local-only files and folders
 *.local.*
@@ -44,3 +45,6 @@ app-lib/clients/*
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Cloudflare Wrangler local state
+.wrangler
