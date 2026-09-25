@@ -161,9 +161,36 @@ const CONTRACT_ERRORS: Record<number, string> = {
 	16: "La oferta ya tiene ventas: el precio es fijo y solo se pueden ampliar las unidades.",
 }
 
+/**
+ * Extracts a message from anything thrown. Wallet modules throw plain
+ * `{ code, message }` objects rather than `Error`s, and signing failures can
+ * nest the cause, so `String(error)` would print "[object Object]".
+ */
+function errorText(error: unknown): string {
+	if (error instanceof Error) return error.message
+	if (typeof error === "string") return error
+	if (error && typeof error === "object") {
+		const { message, error: nested } = error as {
+			message?: unknown
+			error?: unknown
+		}
+		if (typeof message === "string" && message) return message
+		if (nested) return errorText(nested)
+		try {
+			return JSON.stringify(error)
+		} catch {
+			return "Error desconocido"
+		}
+	}
+	return "Error desconocido"
+}
+
 /** Turns wallet, simulation, and contract failures into a readable message. */
 export function describeError(error: unknown): string {
-	const text = error instanceof Error ? error.message : String(error ?? "Error")
+	const text = errorText(error)
+	if (/network|passphrase/i.test(text) && /mismatch|differ|wrong/i.test(text)) {
+		return "Tu wallet está en otra red. Cámbiala a Testnet en Freighter."
+	}
 	const code = /Error\(Contract, #(\d+)\)/.exec(text)?.[1]
 	const contractMessage = code ? CONTRACT_ERRORS[Number(code)] : undefined
 	if (contractMessage) return contractMessage

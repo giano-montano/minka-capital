@@ -102,7 +102,10 @@ export function useMarketAction(successMessage: string) {
 			void refresh()
 			void updateBalances()
 		},
-		onError: (error) => addNotification(describeError(error), "error"),
+		onError: (error) => {
+			console.error(`[Minka] ${successMessage} falló:`, error)
+			addNotification(describeError(error), "error")
+		},
 	})
 }
 
