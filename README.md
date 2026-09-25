@@ -59,9 +59,9 @@ La interfaz React/Vite inicial esta en [`_scaffold_base/app`](_scaffold_base/app
 | --- | --- |
 | Contrato de oferta, allowlist y reparto proporcional | Implementado y con pruebas unitarias |
 | Eventos Soroban para indexacion | Implementado |
-| Dashboard React | Implementado con datos demo |
+| Dashboard React | Conectado al contrato: lecturas on-chain, invest/claim firmados, consola admin y feed en vivo via `getEvents` |
 | Transferencias reales de USDC Testnet mediante SAC | Implementado y probado localmente |
-| Wallet, cliente generado y despliegue en Testnet | Siguiente hito |
+| Despliegue en Testnet | Siguiente hito |
 
 Por transparencia: el contrato ahora cobra el activo SAC configurado al invertir, mantiene un fondo separado para distribuciones y `claim()` transfiere el monto proporcional. La direccion real del SAC USDC, la wallet y el despliegue Testnet aun deben configurarse antes de la demo final.
 
@@ -77,12 +77,22 @@ Las pruebas cubren:
 6. Pausa de la oferta sin bloquear claims.
 7. Rechazo de wallets no aprobadas, sobreasignacion, admin incorrecto, eventos duplicados, ingresos no fondeados y claims vacios.
 
-Ejecutar:
+Ejecutar (17 pruebas, todas en verde el 25 de septiembre de 2026):
 
 ```powershell
 cd _scaffold_base
 cargo test -p minka-market
 ```
+
+En Windows con Control de aplicaciones inteligente activo, los build scripts de Cargo pueden quedar bloqueados. Alternativa con Docker:
+
+```powershell
+cd _scaffold_base
+docker run --rm -v "${PWD}:/work" -v minka-target:/target -e CARGO_TARGET_DIR=/target -w /work rust:1.93 cargo test -p minka-market
+docker run --rm -v "${PWD}:/work" -v minka-target:/target -e CARGO_TARGET_DIR=/target -w /work rust:1.93 cargo build -p minka-market --target wasm32v1-none --release
+```
+
+Los errores del contrato se exponen como codigos estables `Error(Contract, #n)` (`InvestorNotApproved = 4`, `NothingToClaim = 11`, etc.) que el dashboard traduce a mensajes legibles.
 
 ## Ejecutar localmente
 
