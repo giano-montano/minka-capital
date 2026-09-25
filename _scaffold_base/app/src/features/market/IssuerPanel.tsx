@@ -2,8 +2,9 @@ import { StrKey } from "@stellar/stellar-sdk"
 import { type FormEvent, useState } from "react"
 import { formatUnits, formatUsdc, parseUsdc, usdcInputValue } from "./format"
 import styles from "./Market.module.css"
+import { RevenueReportList } from "./RevenueReportList"
 import { type Offering } from "./types"
-import { submit, useMarketAction } from "./useMarket"
+import { submit, useMarketAction, useRevenueReporting } from "./useMarket"
 
 const MAX_NAME = 64
 const MAX_SYMBOL = 12
@@ -16,18 +17,21 @@ interface Props {
 	ownOfferings: Offering[]
 	/** The offering selected in the catalogue, when it belongs to this wallet. */
 	selected?: Offering
+	/** Contract uses the permissioned revenue-report flow. */
+	supportsRevenueReports: boolean
 	onCreated: () => void
 }
 
 /**
  * Console for an approved company: publish offerings, then manage the one
- * selected in the catalogue. In production `record_revenue` would come from a
+ * selected in the catalogue. In production revenue reports would come from a
  * signed oracle fed by the company's POS or billing system.
  */
 export function IssuerPanel({
 	address,
 	ownOfferings,
 	selected,
+	supportsRevenueReports,
 	onCreated,
 }: Props) {
 	return (
@@ -45,7 +49,11 @@ export function IssuerPanel({
 			</p>
 			<CreateOfferingForm onCreated={onCreated} />
 			{selected && selected.issuer === address && (
-				<ManageOffering key={selected.id} offering={selected} />
+				<ManageOffering
+					key={selected.id}
+					offering={selected}
+					supportsRevenueReports={supportsRevenueReports}
+				/>
 			)}
 		</section>
 	)
@@ -156,7 +164,13 @@ function CreateOfferingForm({ onCreated }: { onCreated: () => void }) {
 	)
 }
 
-function ManageOffering({ offering }: { offering: Offering }) {
+function ManageOffering({
+	offering,
+	supportsRevenueReports,
+}: {
+	offering: Offering
+	supportsRevenueReports: boolean
+}) {
 	const locked = offering.sold_units > 0n
 	const [price, setPrice] = useState(usdcInputValue(offering.unit_price))
 	const [units, setUnits] = useState(offering.target_units.toString())
@@ -228,11 +242,19 @@ function ManageOffering({ offering }: { offering: Offering }) {
 					<strong>{formatUsdc(offering.raised)} USDC</strong>
 				</div>
 				<div>
-					<span>Distribuciones disponibles</span>
+					<span>
+						{supportsRevenueReports
+							? "Utilidades por aprobar"
+							: "Distribuciones disponibles"}
+					</span>
 					<strong>{formatUsdc(offering.available)} USDC</strong>
 				</div>
 				<div>
-					<span>Asignado a inversionistas</span>
+					<span>
+						{supportsRevenueReports
+							? "Utilidades reclamables"
+							: "Asignado a inversionistas"}
+					</span>
 					<strong>{formatUsdc(offering.allocated)} USDC</strong>
 				</div>
 			</div>
@@ -283,94 +305,99 @@ function ManageOffering({ offering }: { offering: Offering }) {
 					)}
 				</form>
 
-				<form
-					className={styles.form}
-					onSubmit={(event) => {
-						event.preventDefault()
-						if (!fundAtomic) return
-						fund.mutate(
-							async (client, issuer) =>
-								submit(
-									await client.fund_distributions({
-										issuer,
-										offering_id: id,
-										amount: fundAtomic,
-									}),
-								),
-							{ onSuccess: () => setFundAmount("") },
-						)
-					}}
-				>
-					<label>
-						Fondear distribuciones (USDC)
-						<input
-							inputMode="decimal"
-							placeholder="10"
-							value={fundAmount}
-							onChange={(event) => setFundAmount(event.target.value)}
-						/>
-					</label>
-					<button type="submit" disabled={!fundAtomic || fund.isPending}>
-						{fund.isPending ? "Firmando…" : "Depositar en tesorería"}
-					</button>
-				</form>
+				{!supportsRevenueReports && (
+					<>
+						<form
+							className={styles.form}
+							onSubmit={(event) => {
+								event.preventDefault()
+								if (!fundAtomic) return
+								fund.mutate(
+									async (client, issuer) =>
+										submit(
+											await client.fund_distributions({
+												issuer,
+												offering_id: id,
+												amount: fundAtomic,
+											}),
+										),
+									{ onSuccess: () => setFundAmount("") },
+								)
+							}}
+						>
+							<label>
+								Fondear distribuciones (USDC)
+								<input
+									inputMode="decimal"
+									placeholder="10"
+									value={fundAmount}
+									onChange={(event) => setFundAmount(event.target.value)}
+								/>
+							</label>
+							<button type="submit" disabled={!fundAtomic || fund.isPending}>
+								{fund.isPending ? "Firmando…" : "Depositar en tesorería"}
+							</button>
+						</form>
 
-				<form
-					className={styles.form}
-					onSubmit={(event) => {
-						event.preventDefault()
-						if (!revenueAtomic) return
-						// Millisecond timestamp doubles as a unique idempotency key.
-						const eventId = BigInt(Date.now())
-						revenue.mutate(
-							async (client, issuer) =>
-								submit(
-									await client.record_revenue({
-										issuer,
-										offering_id: id,
-										event_id: eventId,
-										amount: revenueAtomic,
-									}),
-								),
-							{ onSuccess: () => setRevenueAmount("") },
-						)
-					}}
-				>
-					<label>
-						Registrar venta verificada (USDC)
-						<input
-							inputMode="decimal"
-							placeholder="10"
-							value={revenueAmount}
-							onChange={(event) => setRevenueAmount(event.target.value)}
-						/>
-					</label>
-					<button
-						type="submit"
-						disabled={
-							!revenueAtomic ||
-							revenueAtomic > offering.available ||
-							offering.sold_units === 0n ||
-							revenue.isPending
-						}
-					>
-						{revenue.isPending ? "Firmando…" : "Registrar ingreso"}
-					</button>
-					{!revenue.isPending && offering.sold_units === 0n ? (
-						<small className={styles.hint}>
-							Necesitas al menos una inversión para distribuir ingresos.
-						</small>
-					) : (
-						!revenue.isPending &&
-						revenueAtomic !== undefined &&
-						revenueAtomic > offering.available && (
-							<small className={styles.hint}>
-								Solo hay {formatUsdc(offering.available)} USDC fondeados sin
-								asignar. Fondea la tesorería antes de registrar este ingreso.
-							</small>
-						)
-					)}
-				</form>
+						<form
+							className={styles.form}
+							onSubmit={(event) => {
+								event.preventDefault()
+								if (!revenueAtomic) return
+								// Millisecond timestamp doubles as a unique idempotency key.
+								const eventId = BigInt(Date.now())
+								revenue.mutate(
+									async (client, issuer) =>
+										submit(
+											await client.record_revenue({
+												issuer,
+												offering_id: id,
+												event_id: eventId,
+												amount: revenueAtomic,
+											}),
+										),
+									{ onSuccess: () => setRevenueAmount("") },
+								)
+							}}
+						>
+							<label>
+								Registrar venta verificada (USDC)
+								<input
+									inputMode="decimal"
+									placeholder="10"
+									value={revenueAmount}
+									onChange={(event) => setRevenueAmount(event.target.value)}
+								/>
+							</label>
+							<button
+								type="submit"
+								disabled={
+									!revenueAtomic ||
+									revenueAtomic > offering.available ||
+									offering.sold_units === 0n ||
+									revenue.isPending
+								}
+							>
+								{revenue.isPending ? "Firmando…" : "Registrar ingreso"}
+							</button>
+							{!revenue.isPending && offering.sold_units === 0n ? (
+								<small className={styles.hint}>
+									Necesitas al menos una inversión para distribuir ingresos.
+								</small>
+							) : (
+								!revenue.isPending &&
+								revenueAtomic !== undefined &&
+								revenueAtomic > offering.available && (
+									<small className={styles.hint}>
+										Solo hay {formatUsdc(offering.available)} USDC fondeados sin
+										asignar. Fondea la tesorería antes de registrar este
+										ingreso.
+									</small>
+								)
+							)}
+						</form>
+					</>
+				)}
 
 				<form
 					className={styles.form}
@@ -419,6 +446,116 @@ function ManageOffering({ offering }: { offering: Offering }) {
 					</button>
 				</form>
 			</div>
+
+			{supportsRevenueReports && <IssuerRevenueReports offering={offering} />}
+		</div>
+	)
+}
+
+/**
+ * Issuer side of the permissioned revenue flow: once Minka allows reporting,
+ * the company deposits the USDC for a sale or period; Minka then approves it
+ * and investors can claim their pro-rata share.
+ */
+function IssuerRevenueReports({ offering }: { offering: Offering }) {
+	const reporting = useRevenueReporting(offering.id)
+	const [amount, setAmount] = useState("")
+	const [reference, setReference] = useState("")
+	const submitReport = useMarketAction(
+		"Utilidades enviadas a revisión de Minka",
+	)
+
+	const amountAtomic = parseUsdc(amount)
+	const cleanReference = reference.trim()
+	const referenceValue = /^\d{1,19}$/.test(cleanReference)
+		? BigInt(cleanReference)
+		: undefined
+	const enabled = reporting.data?.enabled ?? false
+	const blocker = !reporting.data
+		? "Verificando permisos…"
+		: !enabled
+			? "Minka aún no habilita a tu empresa para reportar utilidades en esta oferta."
+			: offering.sold_units === 0n
+				? "Aún no hay inversionistas: Minka no podrá aprobar el reparto."
+				: cleanReference !== "" && referenceValue === undefined
+					? "La referencia debe ser un número (p. ej. 202609)."
+					: undefined
+
+	return (
+		<div className={styles.subpanel}>
+			<h3>
+				Utilidades de {offering.symbol}
+				<span className={enabled ? styles.badgeOk : styles.badgeWarn}>
+					{enabled ? "reporte habilitado" : "sin permiso de Minka"}
+				</span>
+			</h3>
+			<p className={styles.muted}>
+				Sube las utilidades a repartir: el USDC queda en custodia del contrato
+				hasta que Minka apruebe el reporte; al aprobarse se reparte pro-rata y
+				los inversionistas pueden reclamarlo. Si Minka lo rechaza, se te
+				devuelve.
+			</p>
+			<form
+				className={styles.formGrid}
+				onSubmit={(event) => {
+					event.preventDefault()
+					if (blocker || !amountAtomic) return
+					// Without a reference, a millisecond timestamp is unique enough.
+					const ref = referenceValue ?? BigInt(Date.now())
+					submitReport.mutate(
+						async (client, issuer) =>
+							submit(
+								await client.submit_revenue_report({
+									issuer,
+									offering_id: offering.id,
+									reference: ref,
+									amount: amountAtomic,
+								}),
+							),
+						{
+							onSuccess: () => {
+								setAmount("")
+								setReference("")
+							},
+						},
+					)
+				}}
+			>
+				<label>
+					Utilidades a repartir (USDC)
+					<input
+						inputMode="decimal"
+						placeholder="10"
+						disabled={!enabled}
+						value={amount}
+						onChange={(event) => setAmount(event.target.value)}
+					/>
+				</label>
+				<label>
+					Referencia (opcional)
+					<input
+						inputMode="numeric"
+						placeholder="Periodo o nº de venta"
+						disabled={!enabled}
+						value={reference}
+						onChange={(event) => setReference(event.target.value)}
+					/>
+				</label>
+				<button
+					type="submit"
+					className={styles.primary}
+					disabled={Boolean(blocker) || !amountAtomic || submitReport.isPending}
+				>
+					{submitReport.isPending ? "Firmando…" : "Subir utilidades"}
+				</button>
+			</form>
+			{blocker && !submitReport.isPending && (
+				<small className={styles.hint}>{blocker}</small>
+			)}
+			<RevenueReportList
+				reports={reporting.data?.reports ?? []}
+				emptyText="Aún no has subido utilidades para esta oferta."
+			/>
 		</div>
 	)
 }

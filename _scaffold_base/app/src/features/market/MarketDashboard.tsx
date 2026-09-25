@@ -124,7 +124,10 @@ export function MarketDashboard() {
 
 					{selected && snapshot.data && (
 						<>
-							<OfferingOverview offering={selected} />
+							<OfferingOverview
+								offering={selected}
+								supportsRevenueReports={snapshot.data.supportsRevenueReports}
+							/>
 							<section className={styles.columns}>
 								<InvestorPanel offering={selected} usdc={snapshot.data.usdc} />
 								<article className={styles.panel}>
@@ -158,12 +161,22 @@ export function MarketDashboard() {
 							address={address}
 							ownOfferings={ownOfferings}
 							selected={selected}
+							supportsRevenueReports={
+								snapshot.data?.supportsRevenueReports ?? false
+							}
 							onCreated={() => {
 								selectNewest.current = true
 							}}
 						/>
 					)}
-					{isPlatformAdmin && <PlatformAdminPanel />}
+					{isPlatformAdmin && (
+						<PlatformAdminPanel
+							offerings={offerings}
+							supportsRevenueReports={
+								snapshot.data?.supportsRevenueReports ?? false
+							}
+						/>
+					)}
 
 					<EventFeed
 						events={feed.events}

@@ -35,6 +35,9 @@ pub enum Error {
     OfferingNotFound = 14,
     NotIssuer = 15,
     OfferingLocked = 16,
+    RevenueReportingDisabled = 17,
+    ReportNotFound = 18,
+    ReportAlreadyReviewed = 19,
 }
 
 fn ensure(env: &Env, condition: bool, error: Error) {
@@ -53,7 +56,37 @@ pub enum DataKey {
     Investor(Address),
     Offering(u32),
     Position(u32, Address),
+    /// A sale reference already used in a report (anti-replay).
     RevenueEvent(u32, u64),
+    /// Whether Minka allows the issuer to report revenue for an offering.
+    RevenueReporting(u32),
+    ReportCount(u32),
+    Report(u32, u32),
+}
+
+#[contracttype]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum ReportStatus {
+    /// Deposited by the issuer, waiting for Minka's review.
+    Pending = 0,
+    /// Approved by Minka and distributed pro-rata; investors can claim.
+    Approved = 1,
+    /// Rejected by Minka; the deposit went back to the issuer.
+    Rejected = 2,
+}
+
+/// Revenue the issuer reports for an offering, backed by the USDC it deposits.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RevenueReport {
+    pub id: u32,
+    pub offering_id: u32,
+    /// Issuer's own sale or period reference; unique per offering.
+    pub reference: u64,
+    pub amount: i128,
+    pub status: ReportStatus,
+    pub submitted_at: u64,
 }
 
 /// A primary offering published by an approved issuer (the startup).
@@ -75,9 +108,9 @@ pub struct Offering {
     pub paused: bool,
     /// Investment capital not yet withdrawn by the issuer.
     pub raised: i128,
-    /// Funded distributions not yet assigned to a revenue event.
+    /// Revenue deposited in pending reports, waiting for Minka's review.
     pub available: i128,
-    /// Distributions assigned to revenue events and owed to investors.
+    /// Approved revenue owed to investors (claimable).
     /// Rounding dust from pro-rata division stays here.
     pub allocated: i128,
 }
@@ -151,12 +184,33 @@ pub struct RaiseWithdrawn {
 }
 
 #[contractevent]
-pub struct DistributionFunded {
+pub struct RevenueReportingChanged {
     #[topic]
     pub offering_id: u32,
+    pub enabled: bool,
+}
+
+#[contractevent]
+pub struct RevenueReportSubmitted {
+    #[topic]
+    pub offering_id: u32,
+    #[topic]
+    pub report_id: u32,
+    pub reference: u64,
     pub amount: i128,
 }
 
+#[contractevent]
+pub struct RevenueReportReviewed {
+    #[topic]
+    pub offering_id: u32,
+    #[topic]
+    pub report_id: u32,
+    pub approved: bool,
+    pub amount: i128,
+}
+
+/// Emitted when an approved report is distributed pro-rata.
 #[contractevent]
 pub struct RevenueRecorded {
     #[topic]
@@ -358,10 +412,46 @@ impl MinkaMarket {
         .publish(&env);
     }
 
-    /// Deposits USDC that backs future pro-rata claims for one offering.
-    pub fn fund_distributions(env: Env, issuer: Address, offering_id: u32, amount: i128) {
+    // ---------------------------------------------------------------------
+    // Revenue reporting: Minka allows it, the issuer deposits, Minka approves
+    // ---------------------------------------------------------------------
+
+    /// Allows or stops an offering's issuer from submitting revenue reports.
+    /// Reports already pending can still be reviewed.
+    pub fn set_revenue_reporting(env: Env, admin: Address, offering_id: u32, enabled: bool) {
+        Self::require_admin(&env, &admin);
+        Self::offering(&env, offering_id);
+        Self::save_flag(&env, DataKey::RevenueReporting(offering_id), enabled);
+        RevenueReportingChanged {
+            offering_id,
+            enabled,
+        }
+        .publish(&env);
+    }
+
+    /// The issuer reports revenue for a sale or period and deposits the USDC
+    /// that backs it. Funds stay escrowed as `available` until Minka reviews
+    /// the report. `reference` is the issuer's own unique id (anti-replay).
+    pub fn submit_revenue_report(
+        env: Env,
+        issuer: Address,
+        offering_id: u32,
+        reference: u64,
+        amount: i128,
+    ) -> u32 {
         let mut offering = Self::offering_for_issuer(&env, &issuer, offering_id);
+        ensure(
+            &env,
+            Self::flag(&env, &DataKey::RevenueReporting(offering_id)),
+            Error::RevenueReportingDisabled,
+        );
         ensure(&env, amount > 0, Error::InvalidAmount);
+        let reference_key = DataKey::RevenueEvent(offering_id, reference);
+        ensure(
+            &env,
+            !env.storage().persistent().has(&reference_key),
+            Error::DuplicateRevenueEvent,
+        );
 
         Self::token(&env).transfer(
             &issuer,
@@ -372,55 +462,97 @@ impl MinkaMarket {
             .available
             .checked_add(amount)
             .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
-        Self::save_offering(&env, &offering);
-        DistributionFunded {
+
+        let count_key = DataKey::ReportCount(offering_id);
+        let report_id: u32 = env.storage().persistent().get(&count_key).unwrap_or(0);
+        let report = RevenueReport {
+            id: report_id,
             offering_id,
+            reference,
+            amount,
+            status: ReportStatus::Pending,
+            submitted_at: env.ledger().timestamp(),
+        };
+        Self::save_persistent(&env, &DataKey::Report(offering_id, report_id), &report);
+        Self::save_persistent(&env, &count_key, &(report_id + 1));
+        Self::save_persistent(&env, &reference_key, &true);
+        Self::save_offering(&env, &offering);
+        RevenueReportSubmitted {
+            offering_id,
+            report_id,
+            reference,
             amount,
         }
         .publish(&env);
+        report_id
     }
 
-    /// Accepts one funded, idempotent revenue event and makes its return
-    /// claimable pro-rata. The amount moves from `available` to `allocated`,
-    /// so a single deposit can never back two revenue events.
-    pub fn record_revenue(
-        env: Env,
-        issuer: Address,
-        offering_id: u32,
-        event_id: u64,
-        amount: i128,
-    ) {
-        let mut offering = Self::offering_for_issuer(&env, &issuer, offering_id);
-        ensure(&env, amount > 0, Error::InvalidAmount);
-        let event_key = DataKey::RevenueEvent(offering_id, event_id);
-        ensure(
-            &env,
-            !env.storage().persistent().has(&event_key),
-            Error::DuplicateRevenueEvent,
-        );
+    /// Minka approves a pending report: its deposit moves from `available` to
+    /// `allocated` and is distributed pro-rata, so investors can claim it.
+    pub fn approve_revenue_report(env: Env, admin: Address, offering_id: u32, report_id: u32) {
+        Self::require_admin(&env, &admin);
+        let mut offering = Self::offering(&env, offering_id);
+        let mut report = Self::pending_report(&env, offering_id, report_id);
         ensure(&env, offering.sold_units > 0, Error::NoInvestors);
         ensure(
             &env,
-            offering.available >= amount,
+            offering.available >= report.amount,
             Error::InsufficientDistributionFunds,
         );
-        offering.available -= amount;
-        offering.allocated += amount;
-        let increment = amount
+
+        offering.available -= report.amount;
+        offering.allocated += report.amount;
+        let increment = report
+            .amount
             .checked_mul(SCALE)
             .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow))
             / offering.sold_units;
         offering.revenue_per_unit_scaled += increment;
+        report.status = ReportStatus::Approved;
 
-        env.storage().persistent().set(&event_key, &true);
-        env.storage()
-            .persistent()
-            .extend_ttl(&event_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        Self::save_persistent(&env, &DataKey::Report(offering_id, report_id), &report);
         Self::save_offering(&env, &offering);
+        RevenueReportReviewed {
+            offering_id,
+            report_id,
+            approved: true,
+            amount: report.amount,
+        }
+        .publish(&env);
         RevenueRecorded {
             offering_id,
-            event_id,
-            amount,
+            event_id: report.reference,
+            amount: report.amount,
+        }
+        .publish(&env);
+    }
+
+    /// Minka rejects a pending report and returns its deposit to the issuer.
+    pub fn reject_revenue_report(env: Env, admin: Address, offering_id: u32, report_id: u32) {
+        Self::require_admin(&env, &admin);
+        let mut offering = Self::offering(&env, offering_id);
+        let mut report = Self::pending_report(&env, offering_id, report_id);
+        ensure(
+            &env,
+            offering.available >= report.amount,
+            Error::InsufficientDistributionFunds,
+        );
+
+        offering.available -= report.amount;
+        report.status = ReportStatus::Rejected;
+        Self::save_persistent(&env, &DataKey::Report(offering_id, report_id), &report);
+        Self::save_offering(&env, &offering);
+
+        Self::token(&env).transfer(
+            &env.current_contract_address(),
+            &MuxedAddress::from(offering.issuer.clone()),
+            &report.amount,
+        );
+        RevenueReportReviewed {
+            offering_id,
+            report_id,
+            approved: false,
+            amount: report.amount,
         }
         .publish(&env);
     }
@@ -560,6 +692,28 @@ impl MinkaMarket {
         Self::flag(&env, &DataKey::Investor(account))
     }
 
+    pub fn is_revenue_reporting_enabled(env: Env, offering_id: u32) -> bool {
+        Self::flag(&env, &DataKey::RevenueReporting(offering_id))
+    }
+
+    pub fn get_revenue_report(env: Env, offering_id: u32, report_id: u32) -> RevenueReport {
+        Self::report(&env, offering_id, report_id)
+    }
+
+    /// Every report of an offering, oldest first. Sized for a demo.
+    pub fn get_revenue_reports(env: Env, offering_id: u32) -> Vec<RevenueReport> {
+        let count: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::ReportCount(offering_id))
+            .unwrap_or(0);
+        let mut reports = Vec::new(&env);
+        for id in 0..count {
+            reports.push_back(Self::report(&env, offering_id, id));
+        }
+        reports
+    }
+
     pub fn is_revenue_event_processed(env: Env, offering_id: u32, event_id: u64) -> bool {
         env.storage()
             .persistent()
@@ -585,6 +739,23 @@ impl MinkaMarket {
         let offering = Self::offering(env, offering_id);
         ensure(env, offering.issuer == *issuer, Error::NotIssuer);
         offering
+    }
+
+    fn report(env: &Env, offering_id: u32, report_id: u32) -> RevenueReport {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Report(offering_id, report_id))
+            .unwrap_or_else(|| panic_with_error!(env, Error::ReportNotFound))
+    }
+
+    fn pending_report(env: &Env, offering_id: u32, report_id: u32) -> RevenueReport {
+        let report = Self::report(env, offering_id, report_id);
+        ensure(
+            env,
+            report.status == ReportStatus::Pending,
+            Error::ReportAlreadyReviewed,
+        );
+        report
     }
 
     fn usdc(env: &Env) -> Address {

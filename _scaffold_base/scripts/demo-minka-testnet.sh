@@ -131,10 +131,14 @@ echo "== Investments"
 invoke "invest $ANA $ANA_UNITS units" "$ANA" invest --investor "$ANA" --offering_id "$OFFERING_ID" --units "$ANA_UNITS"
 invoke "invest $LUIS $LUIS_UNITS units" "$LUIS" invest --investor "$LUIS" --offering_id "$OFFERING_ID" --units "$LUIS_UNITS"
 
-echo "== Funding + revenue"
-invoke "fund_distributions" "$ISSUER" fund_distributions --issuer "$ISSUER" --offering_id "$OFFERING_ID" --amount "$REVENUE"
-invoke "record_revenue event $REVENUE_EVENT_ID" "$ISSUER" record_revenue --issuer "$ISSUER" \
-  --offering_id "$OFFERING_ID" --event_id "$REVENUE_EVENT_ID" --amount "$REVENUE"
+echo "== Revenue: Minka allows reporting, LumiSolar submits, Minka approves"
+invoke "enable revenue reporting" "$ADMIN" set_revenue_reporting --admin "$ADMIN" \
+  --offering_id "$OFFERING_ID" --enabled true
+REPORT_ID="$(invoke "submit_revenue_report ref $REVENUE_EVENT_ID" "$ISSUER" submit_revenue_report \
+  --issuer "$ISSUER" --offering_id "$OFFERING_ID" --reference "$REVENUE_EVENT_ID" --amount "$REVENUE" | tail -1)"
+echo "report_id=$REPORT_ID"
+invoke "approve report $REPORT_ID" "$ADMIN" approve_revenue_report --admin "$ADMIN" \
+  --offering_id "$OFFERING_ID" --report_id "$REPORT_ID"
 
 echo "== Ana claims her pro-rata share"
 CLAIMED="$(invoke "claim $ANA" "$ANA" claim --investor "$ANA" --offering_id "$OFFERING_ID" | tail -1)"

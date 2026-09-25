@@ -15,7 +15,12 @@ import {
 	stellarNetwork,
 } from "@stellar-scaffold/app-lib"
 import { minkaConfig } from "../../lib/minkaConfig"
-import { type MinkaMarketClient, type Offering, type Position } from "./types"
+import {
+	type MinkaMarketClient,
+	type Offering,
+	type Position,
+	type RevenueReport,
+} from "./types"
 
 const allowHttp = stellarNetwork === "LOCAL"
 export const rpcServer = new rpc.Server(rpcUrl, { allowHttp })
@@ -58,20 +63,49 @@ export interface MarketSnapshot {
 	admin: string
 	usdc: string
 	offerings: Offering[]
+	/**
+	 * Whether the deployed contract uses the permissioned revenue flow
+	 * (Minka allows reporting, the issuer submits, Minka approves). Older
+	 * deployments expose `fund_distributions` + `record_revenue` instead.
+	 */
+	supportsRevenueReports: boolean
+}
+
+async function hasFunction(name: string): Promise<boolean> {
+	const spec = await loadSpec()
+	return spec.funcs().some((fn) => fn.name().toString() === name)
 }
 
 export async function fetchMarketSnapshot(): Promise<MarketSnapshot> {
 	const client = await getMarketClient()
-	const [admin, usdc, offerings] = await Promise.all([
+	const [admin, usdc, offerings, supportsRevenueReports] = await Promise.all([
 		client.get_admin(),
 		client.get_usdc(),
 		client.get_offerings(),
+		hasFunction("submit_revenue_report"),
 	])
 	return {
 		admin: admin.result,
 		usdc: usdc.result,
 		offerings: offerings.result,
+		supportsRevenueReports,
 	}
+}
+
+export interface RevenueReporting {
+	enabled: boolean
+	reports: RevenueReport[]
+}
+
+export async function fetchRevenueReporting(
+	offeringId: number,
+): Promise<RevenueReporting> {
+	const client = await getMarketClient()
+	const [enabled, reports] = await Promise.all([
+		client.is_revenue_reporting_enabled({ offering_id: offeringId }),
+		client.get_revenue_reports({ offering_id: offeringId }),
+	])
+	return { enabled: enabled.result, reports: reports.result }
 }
 
 export async function fetchPosition(
@@ -159,6 +193,9 @@ const CONTRACT_ERRORS: Record<number, string> = {
 	14: "La oferta no existe.",
 	15: "Solo la empresa emisora de esta oferta puede hacer esto.",
 	16: "La oferta ya tiene ventas: el precio es fijo y solo se pueden ampliar las unidades.",
+	17: "Minka aún no habilita a tu empresa para reportar utilidades en esta oferta.",
+	18: "El reporte de utilidades no existe.",
+	19: "Ese reporte de utilidades ya fue revisado.",
 }
 
 /**

@@ -21,6 +21,25 @@ export interface Offering {
 	allocated: bigint
 }
 
+/** Mirrors the contract's `ReportStatus` (a u32-backed enum). */
+export const ReportStatus = {
+	Pending: 0,
+	Approved: 1,
+	Rejected: 2,
+} as const
+export type ReportStatus = (typeof ReportStatus)[keyof typeof ReportStatus]
+
+export interface RevenueReport {
+	id: number
+	offering_id: number
+	/** Issuer's sale/period reference, unique per offering (anti-replay). */
+	reference: bigint
+	amount: bigint
+	status: ReportStatus
+	/** Ledger close time (Unix seconds) when the report was submitted. */
+	submitted_at: bigint
+}
+
 export interface Position {
 	units: bigint
 	revenue_checkpoint_scaled: bigint
@@ -72,6 +91,7 @@ export interface MinkaMarketClient {
 		{ caller: string; offering_id: number; paused: boolean },
 		null
 	>
+	// Legacy revenue flow (contracts deployed before revenue reports).
 	fund_distributions: Call<
 		{ issuer: string; offering_id: number; amount: bigint },
 		null
@@ -80,6 +100,26 @@ export interface MinkaMarketClient {
 		{ issuer: string; offering_id: number; event_id: bigint; amount: bigint },
 		null
 	>
+
+	// Permissioned revenue flow: Minka allows, issuer submits, Minka reviews.
+	set_revenue_reporting: Call<
+		{ admin: string; offering_id: number; enabled: boolean },
+		null
+	>
+	submit_revenue_report: Call<
+		{ issuer: string; offering_id: number; reference: bigint; amount: bigint },
+		number
+	>
+	approve_revenue_report: Call<
+		{ admin: string; offering_id: number; report_id: number },
+		null
+	>
+	reject_revenue_report: Call<
+		{ admin: string; offering_id: number; report_id: number },
+		null
+	>
+	is_revenue_reporting_enabled: Call<{ offering_id: number }, boolean>
+	get_revenue_reports: Call<{ offering_id: number }, RevenueReport[]>
 	withdraw_raise: Call<
 		{ issuer: string; offering_id: number; to: string; amount: bigint },
 		null

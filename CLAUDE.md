@@ -74,12 +74,21 @@ handoffs/                                        Traspasos entre miembros del eq
 - Admin: `set_issuer_status`, `set_investor_status` (allowlist global).
 - Emisor: `create_offering(issuer, name, symbol≤12, unit_price, target_units) -> u32`,
   `update_offering` (libre hasta la 1.ª venta; después precio fijo y solo crecer),
-  `set_paused` (emisor o admin), `fund_distributions`, `record_revenue(offering_id, event_id, amount)`,
-  `withdraw_raise` (solo el emisor).
+  `set_paused` (emisor o admin), `withdraw_raise` (solo el emisor).
+- **Utilidades (código actual, aún sin desplegar):** Minka habilita con
+  `set_revenue_reporting(admin, offering_id, enabled)`; la empresa sube
+  `submit_revenue_report(issuer, offering_id, reference, amount) -> report_id`
+  (el USDC queda en custodia como `available`); Minka hace
+  `approve_revenue_report` (pasa a `allocated`, se reparte pro-rata y emite
+  `revenue_recorded`) o `reject_revenue_report` (devuelve el USDC a la empresa).
+  Lecturas: `is_revenue_reporting_enabled`, `get_revenue_reports`, `get_revenue_report`.
+  El contrato oficial `CDQ7…` todavía usa el flujo anterior (`fund_distributions` +
+  `record_revenue` sin aprobación); el dashboard detecta cuál tiene el contrato
+  desplegado (`supportsRevenueReports`) y muestra el flujo que corresponda.
 - Inversionista: `invest(investor, offering_id, units)`, `claim(investor, offering_id)`.
 - Lecturas: `get_offerings`, `get_offering`, `get_position(offering_id, investor)`,
   `is_issuer`, `is_investor_approved`, `get_admin`, `get_usdc`.
-- Errores `Error(Contract, #n)` 1–16; la UI los traduce en `contract.ts` (`CONTRACT_ERRORS`).
+- Errores `Error(Contract, #n)` 1–19; la UI los traduce en `contract.ts` (`CONTRACT_ERRORS`).
   Si agregas uno en `lib.rs`, agrégalo también ahí.
 - Montos en unidades atómicas de 7 decimales (1 USDC = `10000000`).
 
@@ -142,14 +151,20 @@ docker run --rm -v "C:/Users/<usuario>/.config/stellar:/config" stellar/stellar-
    pero el sitio publicado sigue con el build viejo. Después, probar con Freighter
    en escritorio y celular. Un teammate sin acceso a la cuenta Cloudflare de Leo
    puede desplegar en la suya con `npx wrangler login` + `npm run deploy` (la URL cambiará).
-3. **Limpiar el scaffold**: borrar `contracts/guess-the-number`, `nft-enumerable`,
+3. **Flujo de utilidades con permiso + aprobación de Minka** (Leo, 25/09):
+   contrato (36 tests en verde), dashboard y `demo-minka-testnet.sh` listos en
+   `dev-leo`, **sin desplegar** a propósito para no romper la demo de `CDQ7…`
+   (Luis tiene 8 USDC reservados para el claim del video). Para activarlo, con
+   visto bueno de Giano: desplegar el contrato nuevo, volver a correr la demo,
+   actualizar `.env.production`, README y la tabla de este archivo, y `npm run deploy`.
+4. **Limpiar el scaffold**: borrar `contracts/guess-the-number`, `nft-enumerable`,
    `fungible-allowlist` y sus entradas en `environments.toml`; renombrar/ocultar
    el botón "Fund Account" (solo da XLM de Friendbot, no USDC).
-4. **Tests de frontend** (Vitest + Testing Library): disclaimer visible, estado
+5. **Tests de frontend** (Vitest + Testing Library): disclaimer visible, estado
    vacío del feed, reglas de bloqueo de precio en `IssuerPanel`.
-5. **Video demo de 2 minutos**: `docs/pitch.md` (guion) y `docs/video-demo.md` (cómo prepararlo y grabarlo con OBS en cualquier máquina).
-6. **Pull request `dev-leo` → `main`** cuando todo lo anterior esté verde.
-7. Opcional: recuperar los 30 USDC que quedaron en el contrato viejo de una sola
+6. **Video demo de 2 minutos**: `docs/pitch.md` (guion) y `docs/video-demo.md` (cómo prepararlo y grabarlo con OBS en cualquier máquina).
+7. **Pull request `dev-leo` → `main`** cuando todo lo anterior esté verde.
+8. Opcional: recuperar los 30 USDC que quedaron en el contrato viejo de una sola
    oferta (`CDEJ6W6K…DMFMM`): claims de Ana (6) y Luis (4) y `withdraw_raise` del admin (20).
 
 ## Convenciones

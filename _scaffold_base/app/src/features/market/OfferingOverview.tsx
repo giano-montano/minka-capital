@@ -2,7 +2,14 @@ import { formatUnits, formatUsdc, percent } from "./format"
 import styles from "./Market.module.css"
 import { type Offering } from "./types"
 
-export function OfferingOverview({ offering }: { offering: Offering }) {
+export function OfferingOverview({
+	offering,
+	supportsRevenueReports = false,
+}: {
+	offering: Offering
+	/** Contract uses the permissioned revenue-report flow. */
+	supportsRevenueReports?: boolean
+}) {
 	const { sold_units: sold, target_units: target, unit_price: price } = offering
 	const progress = percent(sold, target)
 
@@ -19,9 +26,13 @@ export function OfferingOverview({ offering }: { offering: Offering }) {
 			"Asignados a inversionistas",
 		],
 		[
-			"Tesorería de distribuciones",
+			supportsRevenueReports
+				? "Utilidades en revisión"
+				: "Tesorería de distribuciones",
 			`${formatUsdc(offering.available)} USDC`,
-			"Fondeada, sin asignar",
+			supportsRevenueReports
+				? "Subidas por la empresa, por aprobar"
+				: "Fondeada, sin asignar",
 		],
 	]
 

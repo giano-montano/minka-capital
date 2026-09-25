@@ -7,6 +7,7 @@ import {
 	describeError,
 	fetchMarketSnapshot,
 	fetchPosition,
+	fetchRevenueReporting,
 	fetchRoles,
 	fetchTokenBalance,
 	getMarketClient,
@@ -21,6 +22,7 @@ export const marketKeys = {
 	position: (offeringId?: number, address?: string) =>
 		["minka", "position", offeringId, address] as const,
 	roles: (address?: string) => ["minka", "roles", address] as const,
+	reports: (offeringId?: number) => ["minka", "reports", offeringId] as const,
 	balance: (token?: string, address?: string) =>
 		["minka", "balance", token, address] as const,
 }
@@ -42,6 +44,20 @@ export function usePosition(offeringId?: number, address?: string) {
 			minkaConfig.isContractConfigured &&
 			offeringId !== undefined &&
 			Boolean(address),
+		refetchInterval: REFRESH_MS,
+	})
+}
+
+/**
+ * Revenue-reporting permission and reports for one offering. Only enabled on
+ * contracts that support the permissioned revenue flow.
+ */
+export function useRevenueReporting(offeringId?: number, supported = true) {
+	return useQuery({
+		queryKey: marketKeys.reports(offeringId),
+		queryFn: () => fetchRevenueReporting(offeringId as number),
+		enabled:
+			minkaConfig.isContractConfigured && supported && offeringId !== undefined,
 		refetchInterval: REFRESH_MS,
 	})
 }

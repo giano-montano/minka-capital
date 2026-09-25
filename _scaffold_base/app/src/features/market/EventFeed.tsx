@@ -13,6 +13,9 @@ const LABELS: Record<string, string> = {
 	raise_withdrawn: "Retiro de capital",
 	distribution_funded: "Fondeo de distribuciones",
 	revenue_recorded: "Ingreso verificado",
+	revenue_reporting_changed: "Permiso de utilidades",
+	revenue_report_submitted: "Utilidades subidas",
+	revenue_report_reviewed: "Revisión de Minka",
 	claim_recorded: "Claim",
 }
 
@@ -26,6 +29,9 @@ const OFFERING_EVENTS = new Set([
 	"distribution_funded",
 	"revenue_recorded",
 	"claim_recorded",
+	"revenue_reporting_changed",
+	"revenue_report_submitted",
+	"revenue_report_reviewed",
 ])
 
 const big = (value: unknown) =>
@@ -62,6 +68,14 @@ export function describeEvent(
 			return `${symbol}: ${formatUsdc(big(data.amount))} USDC depositados para retornos`
 		case "revenue_recorded":
 			return `${symbol} REV-${String(topics[1])}: ${formatUsdc(big(data.amount))} USDC distribuidos pro-rata`
+		case "revenue_reporting_changed":
+			return `${symbol}: Minka ${data.enabled ? "habilita" : "revoca"} el reporte de utilidades`
+		case "revenue_report_submitted":
+			return `${symbol}: la empresa sube ${formatUsdc(big(data.amount))} USDC de utilidades (reporte #${String(topics[1])})`
+		case "revenue_report_reviewed":
+			return data.approved
+				? `${symbol}: Minka aprueba el reporte #${String(topics[1])}; ${formatUsdc(big(data.amount))} USDC reclamables`
+				: `${symbol}: Minka rechaza el reporte #${String(topics[1])}; ${formatUsdc(big(data.amount))} USDC devueltos`
 		case "claim_recorded":
 			return `${who(topics[1])} reclama ${formatUsdc(big(data.amount))} USDC de ${symbol}`
 		default:
