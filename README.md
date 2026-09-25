@@ -74,7 +74,7 @@ El dashboard React/Vite en [`_scaffold_base/app`](_scaffold_base/app) lee el con
 | Eventos Soroban para indexacion | Implementado |
 | Dashboard React | Catalogo, invest/claim firmados, consolas de empresa y de Minka, feed en vivo |
 | Transferencias reales de USDC Testnet mediante SAC | Implementado |
-| Despliegue en Testnet | Desplegado (ver IDs abajo) |
+| Despliegue en Testnet | Desplegado con demo completa ejecutada (ver IDs y transacciones abajo) |
 
 ## Evidencia verificable
 
@@ -145,36 +145,49 @@ npm run deploy
 
 ## Despliegue Testnet
 
-Contrato multi-oferta desplegado el 25 de septiembre de 2026 (ledger 4869273). Todos los identificadores son verificables en Stellar Expert:
+Contrato multi-oferta desplegado el 25 de septiembre de 2026 (ledger 4870111) y demo completa ejecutada con USDC Testnet de Circle. Todos los identificadores son verificables en Stellar Expert:
 
 | Recurso | Valor |
 | --- | --- |
 | Red | Stellar Testnet |
-| Contrato `minka-market` | [`CD4QCMLVUWY74ZDGCQCHIYNJ6BJRXSOEJHURJKQH6YLBFDMZIK3K2WI7`](https://stellar.expert/explorer/testnet/contract/CD4QCMLVUWY74ZDGCQCHIYNJ6BJRXSOEJHURJKQH6YLBFDMZIK3K2WI7) |
+| Contrato `minka-market` | [`CDQ7YOMBZVPI3QPC7NTKHKQ57MKYFWSEJJBKC5KVGHQU3X6BZ5MQXWZ5`](https://stellar.expert/explorer/testnet/contract/CDQ7YOMBZVPI3QPC7NTKHKQ57MKYFWSEJJBKC5KVGHQU3X6BZ5MQXWZ5) |
 | SAC USDC Testnet (Circle) | [`CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA`](https://stellar.expert/explorer/testnet/contract/CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA) |
-| Admin de Minka | `GCKT2QQJWB5EZSFN22AU33NTRGSK5SUK44BHV75MYGLM5Y67NPLPCZFJ` |
-| Empresa emisora demo (LumiSolar) | `GDLO26OC4T7HITSVQHHWP5OILUP5472RPL6MNPIW2JOT3HMNGZD7JQEC` |
-| Inversionista demo Ana | `GC7PF3RLPCULFFF27AY7IDDMRU5DJ527XJOFVMUMGLFZ7Q4HUO5IHLX7` |
-| Inversionista demo Luis | `GDSDTSZUODLBQOIC3JGJVX6QGRQA32EBQYCXZQLBEHTSKLE3OXIMLRXN` |
+| Admin de Minka | `GDD2SF6X2LCDKUTCGFYGO2ZT2RLRK4S2DRBST35REN2WYZAUQOAF7YE2` |
+| Empresa emisora demo (LumiSolar) | `GBM4UZQ32XGNEJELA7ZRCXZGK7PFBXZHKPZO4MM5EUB2B2CLF63JX3OX` |
+| Inversionista demo Ana | `GB5B6PYYXT7QOSUTXGIMFB5X3DQXL63YZREMQKS4MXVY4MAEKTS5BHKH` |
+| Inversionista demo Luis | `GAQYU3BEVUVI2ATUTRQHEJMVQNGVNCNKKB4WOFYSEBWXC6B32OFN3DHM` |
 
 ### Transacciones de la demo
 
+Oferta `LUMI-RSN` (id 0): 10 USDC por unidad, 1000 unidades. Ana compra 6 unidades y Luis 4 (100 USDC levantados); LumiSolar fondea y registra 20 USDC de ingresos y Ana reclama su 60 % (12 USDC). Los 8 USDC de Luis quedan asignados y reclamables.
+
 | Paso | Transaccion |
 | --- | --- |
-| 1. Despliegue + constructor | [`b1b1f607…`](https://stellar.expert/explorer/testnet/tx/b1b1f607424bfa5fa7d5dfbec3d367c24069be105ca0d5dded6589bad4a7dd37) |
-| 2. Minka aprueba a LumiSolar como emisora | [`c4c3f16f…`](https://stellar.expert/explorer/testnet/tx/c4c3f16f8f2ac907ae4885eb42ba7d4f318134e3e1aa3f9f6855fbeb3e9e7ae0) |
-| 2. Minka aprueba a Ana | [`ed348f30…`](https://stellar.expert/explorer/testnet/tx/ed348f30332d7fc6f15fa62cee29986f19c31cfae18b09989c5b1d23faa75cba) |
-| 2. Minka aprueba a Luis | [`4408597d…`](https://stellar.expert/explorer/testnet/tx/4408597dcf76171f53860a04bf3e74b430ab307e199a3dd76cc14418a7ac9b62) |
-| 3. LumiSolar publica LUMI-RSN | pendiente |
-| 4. Inversiones de Ana y Luis | pendiente |
-| 5. Fondeo + registro de ingreso | pendiente |
-| 6. Claim de Ana | pendiente |
+| 1. Despliegue + constructor | [`0d60384a…`](https://stellar.expert/explorer/testnet/tx/0d60384adf13ad077f43f9a0f3e02059e633ef13ff1eba1e3fc29319621e9a50) |
+| 2. Minka aprueba a LumiSolar como emisora | [`b39cc18c…`](https://stellar.expert/explorer/testnet/tx/b39cc18c0306a4662718491d8c9749c8a03daf2652f2cbdce82c69d352d78615) |
+| 2. Minka aprueba a Ana | [`ece8c383…`](https://stellar.expert/explorer/testnet/tx/ece8c38370d0e73b4ed51e2ef26649b865bf542bdb4442c73712e3be713fb936) |
+| 2. Minka aprueba a Luis | [`1980a214…`](https://stellar.expert/explorer/testnet/tx/1980a21447dfda2bc7ac013f368f368d78463a5561209b737a98148f50c8ef9f) |
+| 3. LumiSolar publica LUMI-RSN | [`e11dbba5…`](https://stellar.expert/explorer/testnet/tx/e11dbba5a25708a24a90c49c5c7897493ffc13325a4704c9a9ebb0fdd1cb8e4a) |
+| 4. Ana invierte 6 unidades (60 USDC) | [`1fa24d5a…`](https://stellar.expert/explorer/testnet/tx/1fa24d5ad6d6ff483e868c696a78f3fa3cb1fd3238f625ea8ed374a2d44abfe8) |
+| 4. Luis invierte 4 unidades (40 USDC) | [`6165c387…`](https://stellar.expert/explorer/testnet/tx/6165c3875e2e8ba60129a69dd773b655566ed2639126af754559e7f9a8ede512) |
+| 5. LumiSolar fondea 20 USDC | [`9ca853e9…`](https://stellar.expert/explorer/testnet/tx/9ca853e920f8f6b07da46277d578e51c80026bd3c8ccc0ba578009c51f7367fa) |
+| 5. LumiSolar registra ingreso (evento 1, 20 USDC) | [`92ea0ced…`](https://stellar.expert/explorer/testnet/tx/92ea0cede6fbe0a493c185273d4c72b329283877ddbc7b310572018688ac16aa) |
+| 6. Ana reclama 12 USDC | [`3ef55a8c…`](https://stellar.expert/explorer/testnet/tx/3ef55a8cc4b6f7186754cdc94ac856607587030cf231097f434b282ca3460bf1) |
 
-Version anterior (una sola oferta, reemplazada por el modelo multi-oferta): [`CDEJ6W6K…DMFMM`](https://stellar.expert/explorer/testnet/contract/CDEJ6W6KLXH5YCHZTGOHDWYNQ3YNWQZOJZDJHJHIEWYF7Z5YNVIDMFMM).
+Versiones anteriores: multi-oferta sin demo completa [`CD4QCMLV…K2WI7`](https://stellar.expert/explorer/testnet/contract/CD4QCMLVUWY74ZDGCQCHIYNJ6BJRXSOEJHURJKQH6YLBFDMZIK3K2WI7); una sola oferta [`CDEJ6W6K…DMFMM`](https://stellar.expert/explorer/testnet/contract/CDEJ6W6KLXH5YCHZTGOHDWYNQ3YNWQZOJZDJHJHIEWYF7Z5YNVIDMFMM).
 
 ### Reproducir el despliegue
 
-Con una identidad de Stellar CLI fondeada en Testnet (`stellar keys generate admin --network testnet --fund`):
+**Linux / macOS (demo completa en un comando).** Crea las cuatro identidades con friendbot, compra USDC de Circle en el DEX de Testnet (XLM -> USDC), despliega el contrato y ejecuta los pasos 1-6. Los hashes quedan en `demo-testnet.log`:
+
+```bash
+cd _scaffold_base
+./scripts/demo-minka-testnet.sh
+# o, contra un contrato ya desplegado:
+MINKA_MARKET_ID=C... ./scripts/demo-minka-testnet.sh
+```
+
+**Windows (solo despliegue).** Con una identidad de Stellar CLI fondeada en Testnet (`stellar keys generate admin --network testnet --fund`):
 
 ```powershell
 cd _scaffold_base
@@ -185,9 +198,8 @@ Despues, Minka aprueba a la empresa y a los inversionistas desde su consola en e
 
 ## Roadmap inmediato
 
-1. Ejecutar la demo completa en Testnet (publicacion, inversiones, ingreso y claim) y registrar sus transacciones.
-2. Grabar el video demo de dos minutos.
-3. Sustituir el registro manual de ingresos por un oraculo firmado conectado a POS o facturacion.
+1. Grabar el video demo de dos minutos.
+2. Sustituir el registro manual de ingresos por un oraculo firmado conectado a POS o facturacion.
 
 ## Estructura
 
