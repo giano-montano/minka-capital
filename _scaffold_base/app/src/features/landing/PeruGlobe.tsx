@@ -83,7 +83,9 @@ export function PeruGlobe() {
 			theta,
 			dark: 1,
 			diffuse: 1.4,
-			mapSamples: 60000,
+			// cobe's shader decomposes each sample index only up to 2^15 - 1, so
+			// more than 32767 samples leaves the southern hemisphere unrendered.
+			mapSamples: 32000,
 			mapBrightness: 7,
 			mapBaseBrightness: 0.02,
 			baseColor: [0.16, 0.13, 0.3],
