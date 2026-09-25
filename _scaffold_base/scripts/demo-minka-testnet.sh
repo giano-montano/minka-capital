@@ -7,30 +7,36 @@
 #   ./scripts/demo-minka-testnet.sh            # deploy a new contract + full demo
 #   MINKA_MARKET_ID=C... ./scripts/demo-minka-testnet.sh   # reuse a deployed contract
 #
+# Every setting below can be overridden from the environment, e.g. to settle
+# in another Testnet asset: USDC_ISSUER=G... USDC_SAC_ID=C... ./scripts/...
+# or to use other Stellar CLI identities: ADMIN=alice ISSUER=bob ...
+#
 # Testnet only. Identities are Stellar CLI keys (~/.config/stellar); no secret
 # is printed or written to the repository. Transaction hashes are appended to
 # demo-testnet.log in the current directory.
 set -euo pipefail
 
 NETWORK=testnet
-USDC_ISSUER=GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5
-USDC_ASSET="USDC:${USDC_ISSUER}"
-USDC_SAC_ID=CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA
+# Circle's USDC on Testnet and its Stellar Asset Contract.
+USDC_CODE="${USDC_CODE:-USDC}"
+USDC_ISSUER="${USDC_ISSUER:-GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5}"
+USDC_SAC_ID="${USDC_SAC_ID:-CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA}"
+USDC_ASSET="${USDC_CODE}:${USDC_ISSUER}"
 USDC=10000000 # 1 USDC in stroops (7 decimals)
 
-ADMIN=minka-admin
-ISSUER=lumisolar
-ANA=ana
-LUIS=luis
+ADMIN="${ADMIN:-minka-admin}"
+ISSUER="${ISSUER:-lumisolar}"
+ANA="${ANA:-ana}"
+LUIS="${LUIS:-luis}"
 
-UNIT_PRICE=$((10 * USDC))
-TARGET_UNITS=1000
-ANA_UNITS=6
-LUIS_UNITS=4
-REVENUE=$((20 * USDC))
-REVENUE_EVENT_ID=1
+UNIT_PRICE=$(( ${UNIT_PRICE_USDC:-10} * USDC ))
+TARGET_UNITS="${TARGET_UNITS:-1000}"
+ANA_UNITS="${ANA_UNITS:-6}"
+LUIS_UNITS="${LUIS_UNITS:-4}"
+REVENUE=$(( ${REVENUE_USDC:-20} * USDC ))
+REVENUE_EVENT_ID="${REVENUE_EVENT_ID:-1}"
 
-LOG=demo-testnet.log
+LOG="${LOG:-demo-testnet.log}"
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 command -v stellar >/dev/null || { echo "Stellar CLI not found in PATH" >&2; exit 1; }
@@ -83,9 +89,10 @@ for name in "$ADMIN" "$ISSUER" "$ANA" "$LUIS"; do
 done
 
 echo "== Circle Testnet USDC (XLM -> USDC on the DEX)"
-buy_usdc "$ISSUER" $((50 * USDC))
-buy_usdc "$ANA" $((100 * USDC))
-buy_usdc "$LUIS" $((100 * USDC))
+# Each account buys exactly what the demo spends.
+buy_usdc "$ISSUER" "$REVENUE"
+buy_usdc "$ANA" $((ANA_UNITS * UNIT_PRICE))
+buy_usdc "$LUIS" $((LUIS_UNITS * UNIT_PRICE))
 
 if [ -z "${MINKA_MARKET_ID:-}" ]; then
   echo "== Build + deploy (constructor runs in the deploy transaction)"
