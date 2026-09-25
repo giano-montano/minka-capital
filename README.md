@@ -111,13 +111,15 @@ Los errores del contrato se exponen como codigos estables `Error(Contract, #n)` 
 
 ### Requisitos
 
-- Rust `1.93` (el proyecto lo fija con `rust-toolchain.toml`) o Docker.
+- Rust `1.93` (el proyecto lo fija con `rust-toolchain.toml`) o Docker. En Linux tambien hace falta un compilador C para enlazar (`sudo apt install build-essential`).
 - Node.js 22+ y npm.
 - Stellar CLI (o la imagen Docker `stellar/stellar-cli`) para desplegar.
 
 ### Contrato
 
-```powershell
+Los mismos comandos funcionan en PowerShell y en bash:
+
+```bash
 cd _scaffold_base
 cargo test -p minka-market
 cargo build -p minka-market --target wasm32v1-none --release
@@ -133,6 +135,8 @@ cd app
 npx vite
 ```
 
+En Linux/macOS, `cp app/.env.example app/.env`. Para usar el contrato oficial basta con copiar los valores de `app/.env.production`, que ya apunta al despliegue de la tabla de abajo.
+
 Despliegue del dashboard en Cloudflare Workers (sitio estatico con fallback SPA, configurado en `app/wrangler.jsonc` y `app/.env.production`):
 
 ```powershell
@@ -140,6 +144,8 @@ cd _scaffold_base\app
 npx wrangler login   # una sola vez
 npm run deploy
 ```
+
+La URL publica se construye con `app/.env.production`: si cambias de contrato, actualiza ese archivo y vuelve a ejecutar `npm run deploy` (la cuenta de Cloudflare es la de Leo; otro miembro puede desplegar en la suya y la URL cambiara).
 
 `npm run dev` tambien lanza `stellar scaffold watch` para una red local; para usar el contrato de Testnet basta con Vite.
 
@@ -156,6 +162,9 @@ Contrato multi-oferta desplegado el 25 de septiembre de 2026 (ledger 4870111) y 
 | Empresa emisora demo (LumiSolar) | `GBM4UZQ32XGNEJELA7ZRCXZGK7PFBXZHKPZO4MM5EUB2B2CLF63JX3OX` |
 | Inversionista demo Ana | `GB5B6PYYXT7QOSUTXGIMFB5X3DQXL63YZREMQKS4MXVY4MAEKTS5BHKH` |
 | Inversionista demo Luis | `GAQYU3BEVUVI2ATUTRQHEJMVQNGVNCNKKB4WOFYSEBWXC6B32OFN3DHM` |
+| Empresa emisora del equipo (Leo) | `GD3LSZMCIBURLOZRQZ6BODBGGMIILKKU5LVXDLZYDM32J3RD366A3I53`, aprobada en [`da9979e0…`](https://stellar.expert/explorer/testnet/tx/da9979e050df75c522bbbe61ec4280fcd2c35bee236afa046cea9fc1e2912f14) |
+
+Las claves secretas de las identidades demo (`minka-admin`, `lumisolar`, `ana`, `luis`) estan en la configuracion de Stellar CLI de la maquina que ejecuto el script, nunca en el repositorio.
 
 ### Transacciones de la demo
 
@@ -187,6 +196,8 @@ cd _scaffold_base
 MINKA_MARKET_ID=C... ./scripts/demo-minka-testnet.sh
 ```
 
+Todas las opciones se pueden cambiar con variables de entorno (`USDC_ISSUER`, `USDC_SAC_ID`, `ADMIN`, `ISSUER`, `ANA`, `LUIS`, `UNIT_PRICE_USDC`, `TARGET_UNITS`, `ANA_UNITS`, `LUIS_UNITS`, `REVENUE_USDC`, `REVENUE_EVENT_ID`); ver la cabecera del script.
+
 **Windows (solo despliegue).** Con una identidad de Stellar CLI fondeada en Testnet (`stellar keys generate admin --network testnet --fund`):
 
 ```powershell
@@ -196,6 +207,19 @@ cd _scaffold_base
 
 Despues, Minka aprueba a la empresa y a los inversionistas desde su consola en el dashboard (o con `set_issuer_status` / `set_investor_status`), y la empresa publica su oferta desde la consola de emisora. Copia `app/.env.example` a `app/.env` y completa `PUBLIC_MINKA_MARKET_ID`, `PUBLIC_USDC_SAC_ID` y `PUBLIC_MINKA_START_LEDGER`.
 
+## Guion de la demo en el dashboard
+
+Pensado para el video de dos minutos sobre el contrato oficial, donde la demo por CLI ya dejo historial en el feed y **8 USDC reclamables para Luis**, para mostrar un claim en vivo.
+
+1. **Preparar Freighter en Testnet.** Importa las identidades demo que vayas a usar. En la maquina que ejecuto el script, `stellar keys secret luis` imprime la clave de Luis; pegala directamente en Freighter (*Import wallet*) y no la compartas por chat. Repite con `lumisolar` y `minka-admin` si vas a mostrar sus consolas.
+2. **Presentar el catalogo** (sin wallet): `LUMI-RSN` con 10 de 1000 unidades vendidas, 100 USDC levantados, y el feed con despliegue, aprobaciones, inversiones, ingreso y claim, cada uno con su hash.
+3. **Claim en vivo como Luis:** conecta su wallet, el panel del inversionista muestra 4 unidades y 8 USDC reclamables; pulsa *Claim USDC en Testnet*. El evento `Claim` aparece en el feed en segundos (track Realtime).
+4. **Nuevo ingreso como LumiSolar:** en la consola de empresa emisora, fondea distribuciones y pulsa *Registrar ingreso* (el dashboard genera un `event_id` unico). LumiSolar necesita USDC: puede sacar parte del capital levantado con *Retirar capital*, o pedirlo al faucet de Circle (faucet.circle.com). El saldo reclamable de Ana y Luis sube en vivo.
+5. **Reglas on-chain:** en la consola de LumiSolar, `LUMI-RSN` aparece como *precio fijo* porque ya tiene ventas: el precio no se puede editar y las unidades solo pueden crecer (el contrato lo impone con `OfferingLocked`). Ampliar las unidades si funciona. El rechazo de `event_id` duplicados esta cubierto por las pruebas del contrato.
+6. **Cierre con la consola de Minka:** aprobar una empresa o inversionista nuevo y mostrar la transaccion en Stellar Expert.
+
+Stellar RPC conserva unos 7 dias de eventos. Despues de ese plazo el feed muestra un aviso y la historia completa sigue en la pagina del contrato en Stellar Expert y en la tabla de transacciones de arriba.
+
 ## Roadmap inmediato
 
 1. Grabar el video demo de dos minutos.
@@ -204,8 +228,11 @@ Despues, Minka aprueba a la empresa y a los inversionistas desde su consola en e
 ## Estructura
 
 ```text
-docs/                         Propuesta, plan y arquitectura
+docs/architecture/            Arquitectura y flujo del sistema
+docs/specs/                   Especificacion del MVP
+docs/archive/                 Planes originales (historico)
 _scaffold_base/
+  scripts/                    Demo Testnet (bash) y despliegue (PowerShell)
   contracts/minka-market/     Contrato Soroban y pruebas
   app/                        Dashboard React/Vite
   app-lib/                    Utilidades y clientes de Stellar Scaffold
