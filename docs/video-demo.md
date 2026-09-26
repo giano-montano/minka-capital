@@ -6,15 +6,17 @@ El guion hablado está en [`pitch.md`](pitch.md). Tiempo total de preparación: 
 
 ## 0. Qué vas a grabar
 
-| Tiempo | Pantalla | Acción |
-| --- | --- | --- |
-| 0:00 – 0:30 | Landing `/` | El globo entra a Perú. Arrástralo un poco y haz zoom con **+** sobre Lima. |
-| 0:30 – 0:50 | `/app`, catálogo | Sin wallet conectada: `LUMI-RSN`, 10/1000 unidades, capital levantado. |
-| 0:50 – 1:05 | `/app`, feed | Baja al feed "Actividad de la plataforma": despliegue, aprobaciones, inversiones, ingreso, claim. |
-| 1:05 – 1:30 | `/app` como **Luis** | Conecta la wallet de Luis → panel del inversionista con 8 USDC reclamables → **Cobrar 8 USDC** (pestaña Mi portafolio) → el evento aparece en el feed. |
-| 1:30 – 2:00 | Landing `/` | Scroll a "En vivo desde Stellar RPC" (las métricas ya incluyen el claim) y cierre en "Súmate a la minka". |
+El pitch es **expositivo**: una sola toma bajando por la landing `/` mientras lees [`pitch.md`](pitch.md). No hace falta conectar wallets ni firmar nada en vivo; la sección "En vivo desde Stellar RPC" muestra el contrato real.
 
-Toma extra opcional (para una versión larga o para las preguntas): como **LumiSolar**, fondear y registrar un segundo ingreso y ver subir el reclamable de Ana.
+| Tiempo | Sección de la landing | Acción |
+| --- | --- | --- |
+| 0:00 – 0:12 | Hero | Deja que el globo termine de girar hasta Perú. |
+| 0:12 – 0:35 | El problema | Scroll hasta ver las tres tarjetas y la frase "Lo que falta es el puente". |
+| 0:35 – 1:22 | Cómo funciona | Scroll paso a paso (01 → 05), centrando cada uno y dejando correr su animación. |
+| 1:22 – 1:38 | En vivo desde Stellar RPC | Métricas y feed con enlaces a las transacciones. |
+| 1:38 – 2:00 | La visión → Súmate a la minka | Scroll lento hasta el cierre. |
+
+Toma extra opcional (para una versión larga o para las preguntas): el claim en vivo de Luis desde `/app` (pasos 6 y 8), o como **LumiSolar**, fondear y registrar un segundo ingreso y ver subir el reclamable de Ana.
 
 ## 1. Requisitos (una sola vez)
 
@@ -143,7 +145,7 @@ Graba primero una prueba de 10 segundos y revisa audio y nitidez.
 
 1. Abre `http://localhost:5173/` y deja que el globo termine su entrada.
 2. Empieza a grabar y sigue la tabla del paso 0 leyendo [`pitch.md`](pitch.md).
-3. En el claim: **Connect** → elige Freighter → aprueba la conexión → **Cobrar 8 USDC** (pestaña Mi portafolio) → firma en Freighter. Quédate en silencio hasta que aparezca el evento `Claim` en el feed (~5 s).
+3. Solo para la toma extra del claim: **Connect** → elige Freighter → aprueba la conexión → **Cobrar 8 USDC** (pestaña Mi portafolio) → firma en Freighter. Quédate en silencio hasta que aparezca el evento `Claim` en el feed (~5 s).
 4. Si algo falla en vivo, detén la grabación, corre `./scripts/demo-minka-testnet.sh` de nuevo (paso 3), reinicia `npx vite` para que tome el `.env.local` nuevo y repite desde el paso 6.
 
 ## 9. Problemas comunes
