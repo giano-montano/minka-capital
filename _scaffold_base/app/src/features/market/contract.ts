@@ -313,6 +313,12 @@ export function describeError(error: unknown): string {
 	if (/network|passphrase/i.test(text) && /mismatch|differ|wrong/i.test(text)) {
 		return "Tu wallet está en otra red. Cámbiala a Testnet en Freighter."
 	}
+	// Checked before contract codes: the USDC SAC reports a missing trustline
+	// as its own `Error(Contract, #13)`, which would otherwise read as Minka's
+	// "issuer not approved".
+	if (/trustline/i.test(text)) {
+		return "La wallet que recibe los USDC no tiene trustline de USDC. Habilítala con el botón “Habilitar USDC” (o en Freighter: Manage assets) y vuelve a intentarlo."
+	}
 	const code = /Error\(Contract, #(\d+)\)/.exec(text)?.[1]
 	const contractMessage = code ? CONTRACT_ERRORS[Number(code)] : undefined
 	if (contractMessage) return contractMessage
@@ -322,9 +328,6 @@ export function describeError(error: unknown): string {
 		)
 	) {
 		return "Saldo de USDC insuficiente en tu wallet."
-	}
-	if (/trustline/i.test(text)) {
-		return "Tu wallet necesita una trustline al activo USDC de la oferta."
 	}
 	if (/reject|declin|cancel/i.test(text)) {
 		return "Firma cancelada en la wallet."
