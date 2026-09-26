@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+	useMutation,
+	useQueries,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query"
 import { useCallback } from "react"
 import { useNotification } from "../../hooks/useNotification"
 import { useWallet } from "../../hooks/useWallet"
@@ -13,7 +18,7 @@ import {
 	getMarketClient,
 	submit,
 } from "./contract"
-import { type MinkaMarketClient } from "./types"
+import { type MinkaMarketClient, type Offering } from "./types"
 
 const REFRESH_MS = 15_000
 export const marketKeys = {
@@ -59,6 +64,33 @@ export function useRevenueReporting(offeringId?: number, supported = true) {
 		enabled:
 			minkaConfig.isContractConfigured && supported && offeringId !== undefined,
 		refetchInterval: REFRESH_MS,
+	})
+}
+
+/** The wallet's position in every offering, in catalogue order. */
+export function usePositions(offerings: Offering[], address?: string) {
+	return useQueries({
+		queries: offerings.map((offering) => ({
+			queryKey: marketKeys.position(offering.id, address),
+			queryFn: () => fetchPosition(offering.id, address as string),
+			enabled: minkaConfig.isContractConfigured && Boolean(address),
+			refetchInterval: REFRESH_MS,
+		})),
+	})
+}
+
+/** Revenue-reporting state of every offering (permissioned flow only). */
+export function useAllRevenueReporting(
+	offerings: Offering[],
+	supported: boolean,
+) {
+	return useQueries({
+		queries: offerings.map((offering) => ({
+			queryKey: marketKeys.reports(offering.id),
+			queryFn: () => fetchRevenueReporting(offering.id),
+			enabled: minkaConfig.isContractConfigured && supported,
+			refetchInterval: REFRESH_MS,
+		})),
 	})
 }
 

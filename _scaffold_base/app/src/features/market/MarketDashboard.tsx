@@ -1,21 +1,42 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { useWallet } from "../../hooks/useWallet"
 import { minkaConfig } from "../../lib/minkaConfig"
 import { describeError } from "./contract"
 import { EventFeed } from "./EventFeed"
-import { shortId } from "./format"
-import { InvestorPanel } from "./InvestorPanel"
+import { ExploreTab } from "./ExploreTab"
+import { formatUsdc, shortId } from "./format"
 import { IssuerPanel } from "./IssuerPanel"
 import styles from "./Market.module.css"
-import { OfferingCatalog } from "./OfferingCatalog"
-import { OfferingOverview } from "./OfferingOverview"
 import { PlatformAdminPanel } from "./PlatformAdminPanel"
-import { type Offering } from "./types"
-import { useMarketSnapshot, useRefreshMarket, useRoles } from "./useMarket"
+import { PortfolioTab } from "./PortfolioTab"
+import { type MarketEvent, type Offering, ReportStatus } from "./types"
+import {
+	useAllRevenueReporting,
+	useMarketSnapshot,
+	usePositions,
+	useRefreshMarket,
+	useRoles,
+	useTokenBalance,
+} from "./useMarket"
 import { useMarketEvents } from "./useMarketEvents"
+import { WalletStatus } from "./WalletStatus"
 
 const NO_OFFERINGS: Offering[] = []
+const TABS = [
+	"explorar",
+	"portafolio",
+	"empresa",
+	"minka",
+	"actividad",
+] as const
+type Tab = (typeof TABS)[number]
 
+/**
+ * Role-based workspace: everyone explores; investors get their portfolio,
+ * companies their console and Minka its review desk. The active tab lives in
+ * the URL (?tab=) so any view can be linked or bookmarked.
+ */
 export function MarketDashboard() {
 	const { address } = useWallet()
 	const snapshot = useMarketSnapshot()
@@ -25,64 +46,100 @@ export function MarketDashboard() {
 	// claimable returns update without a page reload.
 	const onNewEvents = useCallback(() => void refresh(), [refresh])
 	const feed = useMarketEvents(onNewEvents)
+	const balance = useTokenBalance(snapshot.data?.usdc, address)
 
 	const offerings = snapshot.data?.offerings ?? NO_OFFERINGS
-	const [selectedId, setSelectedId] = useState<number>()
-	const selectNewest = useRef(false)
-
-	useEffect(() => {
-		if (offerings.length === 0) return
-		const newest = offerings[offerings.length - 1]
-		if (selectNewest.current && newest) {
-			selectNewest.current = false
-			setSelectedId(newest.id)
-		} else if (
-			selectedId === undefined ||
-			!offerings.some((o) => o.id === selectedId)
-		) {
-			setSelectedId(offerings[0]?.id)
-		}
-	}, [offerings, selectedId])
-
-	const selected = offerings.find((o) => o.id === selectedId)
-	const isPlatformAdmin = Boolean(address && snapshot.data?.admin === address)
+	const supportsReports = snapshot.data?.supportsRevenueReports ?? false
+	const isAdmin = Boolean(address && snapshot.data?.admin === address)
 	const isIssuer = Boolean(address && roles.data?.isIssuer)
+	const isInvestor = Boolean(address && roles.data?.isInvestorApproved)
+	const rolesLoading =
+		Boolean(address) && (roles.isLoading || snapshot.isLoading)
 	const ownOfferings = offerings.filter((o) => o.issuer === address)
+
+	const positions = usePositions(offerings, address)
+	const claimable = positions.reduce(
+		(sum, q) => sum + (q.data?.claimable ?? 0n),
+		0n,
+	)
+	const reporting = useAllRevenueReporting(
+		isAdmin ? offerings : NO_OFFERINGS,
+		supportsReports,
+	)
+	const pendingReports = reporting.reduce(
+		(sum, q) =>
+			sum +
+			(q.data?.reports.filter((r) => r.status === ReportStatus.Pending)
+				.length ?? 0),
+		0,
+	)
+
+	const visible: Record<Tab, boolean> = {
+		explorar: true,
+		portafolio: Boolean(address),
+		empresa: isIssuer,
+		minka: isAdmin,
+		actividad: true,
+	}
+
+	const [params, setParams] = useSearchParams()
+	const requested = params.get("tab") as Tab | null
+	const tab: Tab = requested && visible[requested] ? requested : "explorar"
+	const goTo = useCallback(
+		(next: Tab, extra?: Record<string, string>) =>
+			setParams({ tab: next, ...extra }, { replace: false }),
+		[setParams],
+	)
+
+	// Land each role on its own workspace once, unless the URL already says.
+	const landed = useRef(false)
+	useEffect(() => {
+		if (landed.current || rolesLoading || !address) return
+		landed.current = true
+		if (requested) return
+		if (isAdmin) goTo("minka")
+		else if (isIssuer) goTo("empresa")
+		else if (claimable > 0n) goTo("portafolio")
+	}, [address, rolesLoading, requested, isAdmin, isIssuer, claimable, goTo])
+
+	const offeringParam = params.get("oferta")
+	const selected =
+		offerings.find((o) => String(o.id) === offeringParam) ??
+		offerings.find((o) => !o.paused) ??
+		offerings[0]
+
+	const labels: Record<Tab, string> = {
+		explorar: "Explorar",
+		portafolio:
+			claimable > 0n
+				? `Mi portafolio · ${formatUsdc(claimable)} por cobrar`
+				: "Mi portafolio",
+		empresa: "Mi empresa",
+		minka: pendingReports > 0 ? `Minka · ${pendingReports}` : "Minka",
+		actividad: "Actividad",
+	}
 
 	return (
 		<div className={styles.dashboard}>
-			<section className={styles.hero}>
+			<header className={styles.dashHeader}>
 				<div>
-					<p className={styles.eyebrow}>
-						STELLAR TESTNET · REALTIME CAPITAL MARKETS
-					</p>
-					<h1>
-						Capital para startups,
-						<br />
-						liquidado con cada venta.
-					</h1>
-					<p>
-						Startups peruanas publican participaciones en sus ingresos futuros;
-						los inversionistas reciben retornos programables cada vez que la
-						empresa vende.
-					</p>
+					<p className={styles.eyebrow}>STELLAR TESTNET · MERCADO PRIMARIO</p>
+					<h1>Mercado Minka</h1>
 				</div>
 				<aside>
 					<strong>Prototipo en Stellar Testnet</strong>
 					<span>No es una oferta de inversión.</span>
-					{minkaConfig.isContractConfigured ? (
+					{minkaConfig.isContractConfigured && (
 						<a
 							href={minkaConfig.contractUrl(minkaConfig.contractId)}
 							target="_blank"
 							rel="noreferrer"
 						>
-							Contrato {shortId(minkaConfig.contractId, 5)}
+							Contrato {shortId(minkaConfig.contractId, 5)} ↗
 						</a>
-					) : (
-						<span>Contrato Testnet pendiente de configurar.</span>
 					)}
 				</aside>
-			</section>
+			</header>
 
 			{!minkaConfig.isContractConfigured ? (
 				<section className={styles.panel}>
@@ -97,97 +154,146 @@ export function MarketDashboard() {
 				</section>
 			) : (
 				<>
+					<WalletStatus
+						address={address}
+						usdcBalance={balance.data}
+						isAdmin={isAdmin}
+						isIssuer={isIssuer}
+						isInvestor={isInvestor}
+						rolesLoading={rolesLoading}
+					/>
+
 					{snapshot.error && (
 						<p className={styles.errorBanner}>
 							No se pudo leer el contrato: {describeError(snapshot.error)}
 						</p>
 					)}
 
-					{offerings.length > 0 ? (
-						<OfferingCatalog
-							offerings={offerings}
-							selectedId={selectedId}
-							onSelect={setSelectedId}
-						/>
-					) : (
-						snapshot.data && (
-							<section className={styles.panel}>
-								<p className={styles.eyebrow}>SIN OFERTAS</p>
-								<h2>Aún no hay ofertas publicadas</h2>
-								<p className={styles.muted}>
-									Una empresa aprobada por Minka puede publicar la primera desde
-									su consola.
-								</p>
-							</section>
-						)
-					)}
+					<nav className={styles.tabs} role="tablist" aria-label="Secciones">
+						{TABS.filter((t) => visible[t]).map((t) => (
+							<button
+								key={t}
+								type="button"
+								role="tab"
+								aria-selected={tab === t}
+								className={
+									(t === "minka" && pendingReports > 0) ||
+									(t === "portafolio" && claimable > 0n)
+										? styles.tabHot
+										: undefined
+								}
+								onClick={() => goTo(t)}
+							>
+								{labels[t]}
+							</button>
+						))}
+					</nav>
 
-					{selected && snapshot.data && (
+					{snapshot.isLoading ? (
+						<p className={styles.muted}>Leyendo el contrato en Stellar…</p>
+					) : (
 						<>
-							<OfferingOverview
-								offering={selected}
-								supportsRevenueReports={snapshot.data.supportsRevenueReports}
-							/>
-							<section className={styles.columns}>
-								<InvestorPanel offering={selected} usdc={snapshot.data.usdc} />
-								<article className={styles.panel}>
-									<p className={styles.eyebrow}>CÓMO FUNCIONA</p>
-									<h2>Del ingreso al retorno</h2>
-									<ol className={styles.steps}>
-										<li>
-											Minka aprueba a la empresa emisora y a los inversionistas.
-										</li>
-										<li>
-											La empresa publica su oferta: precio por unidad y unidades
-											a emitir.
-										</li>
-										<li>
-											Inversionistas aprobados compran unidades con USDC
-											Testnet.
-										</li>
-										<li>
-											La empresa registra cada venta con un{" "}
-											<code>event_id</code> único; el contrato la reparte
-											pro-rata y este dashboard lo muestra al instante vía RPC.
-										</li>
-									</ol>
-								</article>
-							</section>
+							{tab === "explorar" && (
+								<ExploreTab
+									offerings={offerings}
+									selected={selected}
+									onSelect={(id) => goTo("explorar", { oferta: String(id) })}
+									address={address}
+									isInvestor={isInvestor}
+									rolesLoading={rolesLoading}
+									usdcBalance={balance.data}
+									supportsRevenueReports={supportsReports}
+									onGoToCompany={() => goTo("empresa")}
+								/>
+							)}
+							{tab === "portafolio" && (
+								<PortfolioTab
+									offerings={offerings}
+									positions={positions}
+									isInvestor={isInvestor}
+									onExplore={(id) =>
+										goTo(
+											"explorar",
+											id === undefined ? undefined : { oferta: String(id) },
+										)
+									}
+								/>
+							)}
+							{tab === "empresa" && address && (
+								<IssuerPanel
+									address={address}
+									ownOfferings={ownOfferings}
+									supportsRevenueReports={supportsReports}
+								/>
+							)}
+							{tab === "minka" && (
+								<PlatformAdminPanel
+									offerings={offerings}
+									supportsRevenueReports={supportsReports}
+									events={feed.events}
+								/>
+							)}
+							{tab === "actividad" && (
+								<ActivityTab
+									address={address}
+									events={feed.events}
+									offerings={offerings}
+									isLoading={feed.isLoading}
+									error={feed.error}
+									lastSyncedLedger={feed.lastSyncedLedger}
+									historyTruncated={feed.historyTruncated}
+								/>
+							)}
 						</>
 					)}
-
-					{isIssuer && address && (
-						<IssuerPanel
-							address={address}
-							ownOfferings={ownOfferings}
-							selected={selected}
-							supportsRevenueReports={
-								snapshot.data?.supportsRevenueReports ?? false
-							}
-							onCreated={() => {
-								selectNewest.current = true
-							}}
-						/>
-					)}
-					{isPlatformAdmin && (
-						<PlatformAdminPanel
-							offerings={offerings}
-							supportsRevenueReports={
-								snapshot.data?.supportsRevenueReports ?? false
-							}
-						/>
-					)}
-
-					<EventFeed
-						events={feed.events}
-						offerings={offerings}
-						isLoading={feed.isLoading}
-						error={feed.error}
-						lastSyncedLedger={feed.lastSyncedLedger}
-						historyTruncated={feed.historyTruncated}
-					/>
 				</>
 			)}
 		</div>
+	)
+}
+
+function ActivityTab({
+	address,
+	events,
+	...feedProps
+}: {
+	address?: string
+	events: MarketEvent[]
+	offerings: Offering[]
+	isLoading: boolean
+	error?: string
+	lastSyncedLedger?: number
+	historyTruncated: boolean
+}) {
+	const [mine, setMine] = useState(false)
+	const shown =
+		mine && address
+			? events.filter((e) => e.topics.some((t) => String(t) === address))
+			: events
+
+	return (
+		<>
+			{address && (
+				<div className={styles.segmented} role="radiogroup">
+					<button
+						type="button"
+						role="radio"
+						aria-checked={!mine}
+						onClick={() => setMine(false)}
+					>
+						Toda la plataforma
+					</button>
+					<button
+						type="button"
+						role="radio"
+						aria-checked={mine}
+						onClick={() => setMine(true)}
+					>
+						Solo mis movimientos
+					</button>
+				</div>
+			)}
+			<EventFeed events={shown} {...feedProps} />
+		</>
 	)
 }

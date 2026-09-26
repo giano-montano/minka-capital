@@ -1,209 +1,424 @@
 import { StrKey } from "@stellar/stellar-sdk"
 import { useState } from "react"
-import { formatUsdc } from "./format"
+import { formatUnits, formatUsdc, shortId } from "./format"
 import styles from "./Market.module.css"
-import { RevenueReportList } from "./RevenueReportList"
-import { type MinkaMarketClient, type Offering, ReportStatus } from "./types"
-import { submit, useMarketAction, useRevenueReporting } from "./useMarket"
+import {
+	type MarketEvent,
+	type MinkaMarketClient,
+	type Offering,
+	type RevenueReport,
+	ReportStatus,
+} from "./types"
+import { submit, useAllRevenueReporting, useMarketAction } from "./useMarket"
 
-type Role = "issuer" | "investor"
+type Role = "investor" | "issuer"
 
-const ROLE_COPY: Record<Role, { title: string; help: string }> = {
-	issuer: {
-		title: "Empresas emisoras",
-		help: "Pueden publicar ofertas, fijar su precio, subir utilidades y retirar el capital levantado.",
-	},
-	investor: {
-		title: "Inversionistas",
-		help: "Allowlist global (KYC demo): pueden invertir en cualquier oferta publicada.",
-	},
+const ROLE_LABEL: Record<Role, string> = {
+	investor: "Inversionista",
+	issuer: "Empresa emisora",
 }
 
 interface Props {
 	offerings: Offering[]
 	/** Contract uses the permissioned revenue-report flow. */
 	supportsRevenueReports: boolean
+	events: MarketEvent[]
 }
 
 /**
- * Minka's own console: decides who may issue and who may invest, and reviews
- * the revenue companies report.
+ * Minka's console, ordered by urgency: reports waiting for review, who may
+ * take part, and a control row per offering.
  */
 export function PlatformAdminPanel({
 	offerings,
 	supportsRevenueReports,
+	events,
 }: Props) {
+	const reporting = useAllRevenueReporting(offerings, supportsRevenueReports)
+
+	return (
+		<>
+			{supportsRevenueReports ? (
+				<ReviewQueue offerings={offerings} reporting={reporting} />
+			) : (
+				<section className={styles.panel}>
+					<p className={styles.eyebrow}>UTILIDADES</p>
+					<h2>Este contrato reparte sin revisión</h2>
+					<p className={styles.muted}>
+						El contrato desplegado usa el flujo anterior: cada empresa reparte
+						sus utilidades directamente. Despliega la versión con reportes
+						aprobados por Minka para revisar cada reparto aquí.
+					</p>
+				</section>
+			)}
+			<Participants events={events} />
+			<OfferingControls
+				offerings={offerings}
+				supportsRevenueReports={supportsRevenueReports}
+				reportingEnabled={reporting.map((q) => q.data?.enabled)}
+			/>
+		</>
+	)
+}
+
+function ReviewQueue({
+	offerings,
+	reporting,
+}: {
+	offerings: Offering[]
+	reporting: ReturnType<typeof useAllRevenueReporting>
+}) {
+	const pending = offerings.flatMap((offering, i) =>
+		(reporting[i]?.data?.reports ?? [])
+			.filter((r) => r.status === ReportStatus.Pending)
+			.map((report) => ({ offering, report })),
+	)
+	const loading = reporting.some((q) => q.isLoading)
+
 	return (
 		<section className={styles.panel}>
-			<p className={styles.eyebrow}>CONSOLA DE MINKA · ADMINISTRADOR</p>
-			<h2>Aprobaciones de la plataforma</h2>
-			<div className={styles.columns}>
-				<RoleForm role="issuer" />
-				<RoleForm role="investor" />
-			</div>
-			{supportsRevenueReports && <RevenueReview offerings={offerings} />}
+			<p className={styles.eyebrow}>POR REVISAR · {pending.length}</p>
+			<h2>Reportes de utilidades</h2>
+			{loading && pending.length === 0 ? (
+				<p className={styles.muted}>Buscando reportes pendientes…</p>
+			) : pending.length === 0 ? (
+				<p className={styles.okNote}>
+					Todo al día: no hay reportes esperando tu revisión.
+				</p>
+			) : (
+				<ul className={styles.queue}>
+					{pending.map(({ offering, report }) => (
+						<PendingReport
+							key={`${offering.id}-${report.id}`}
+							offering={offering}
+							report={report}
+						/>
+					))}
+				</ul>
+			)}
 		</section>
 	)
 }
 
-function RoleForm({ role }: { role: Role }) {
-	const [account, setAccount] = useState("")
-	const action = useMarketAction(
-		role === "issuer" ? "Empresa emisora actualizada" : "Allowlist actualizada",
+function PendingReport({
+	offering,
+	report,
+}: {
+	offering: Offering
+	report: RevenueReport
+}) {
+	const approve = useMarketAction(
+		`Utilidades de ${offering.symbol} aprobadas: ya son cobrables`,
 	)
-	const target = account.trim()
-	const valid = StrKey.isValidEd25519PublicKey(target)
-
-	const setStatus = (approved: boolean) =>
-		action.mutate(
-			async (client: MinkaMarketClient, admin) =>
-				submit(
-					role === "issuer"
-						? await client.set_issuer_status({
-								admin,
-								issuer: target,
-								approved,
-							})
-						: await client.set_investor_status({
-								admin,
-								investor: target,
-								approved,
-							}),
-				),
-			{ onSuccess: () => setAccount("") },
-		)
+	const reject = useMarketAction(
+		`Reporte de ${offering.symbol} rechazado: USDC devuelto a la empresa`,
+	)
+	const busy = approve.isPending || reject.isPending
+	const perUnit =
+		offering.sold_units > 0n ? report.amount / offering.sold_units : 0n
+	const submitted = new Date(Number(report.submitted_at) * 1000)
 
 	return (
-		<div className={styles.form}>
-			<label>
-				{ROLE_COPY[role].title}
-				<input
-					placeholder="G…"
-					value={account}
-					onChange={(event) => setAccount(event.target.value)}
-				/>
-			</label>
-			<small className={styles.muted}>{ROLE_COPY[role].help}</small>
+		<li>
+			<div>
+				<span className={styles.cardSymbol}>{offering.symbol}</span>
+				<strong>{formatUsdc(report.amount)} USDC</strong>
+				<span className={styles.muted}>
+					Ref. {report.reference.toString()} · enviado{" "}
+					{submitted.toLocaleString("es-PE")} · ≈ {formatUsdc(perUnit)} USDC por
+					unidad entre {formatUnits(offering.sold_units)} unidades
+				</span>
+			</div>
 			<div className={styles.row}>
 				<button
 					type="button"
-					disabled={!valid || action.isPending}
-					onClick={() => setStatus(true)}
-				>
-					Aprobar
-				</button>
-				<button
-					type="button"
-					disabled={!valid || action.isPending}
-					onClick={() => setStatus(false)}
-				>
-					Revocar
-				</button>
-			</div>
-		</div>
-	)
-}
-
-/**
- * Minka's review desk for company revenue: allow each offering's issuer to
- * report revenue, then approve (distribute) or reject (refund) each report.
- */
-function RevenueReview({ offerings }: { offerings: Offering[] }) {
-	return (
-		<div className={styles.subpanel}>
-			<h3>Utilidades por oferta</h3>
-			<p className={styles.muted}>
-				Habilita a cada empresa para reportar utilidades. Cada reporte llega con
-				su USDC en custodia; al aprobarlo se reparte pro-rata entre los
-				inversionistas y queda reclamable. Al rechazarlo, el USDC vuelve a la
-				empresa.
-			</p>
-			{offerings.length === 0 ? (
-				<p className={styles.muted}>Aún no hay ofertas publicadas.</p>
-			) : (
-				offerings.map((offering) => (
-					<OfferingRevenueReview key={offering.id} offering={offering} />
-				))
-			)}
-		</div>
-	)
-}
-
-function OfferingRevenueReview({ offering }: { offering: Offering }) {
-	const reporting = useRevenueReporting(offering.id)
-	const permission = useMarketAction(
-		`Permiso de utilidades de ${offering.symbol} actualizado`,
-	)
-	const approve = useMarketAction("Utilidades aprobadas: ya son reclamables")
-	const reject = useMarketAction(
-		"Reporte rechazado: USDC devuelto a la empresa",
-	)
-
-	const enabled = reporting.data?.enabled ?? false
-	const reports = reporting.data?.reports ?? []
-	const pending = reports.filter((r) => r.status === ReportStatus.Pending)
-	const offeringId = offering.id
-
-	return (
-		<div className={styles.reviewCard}>
-			<div className={styles.panelHeader}>
-				<div>
-					<strong>
-						{offering.name} · {offering.symbol}
-					</strong>
-					<span className={styles.muted}>
-						{" "}
-						· {pending.length} pendiente{pending.length === 1 ? "" : "s"} ·{" "}
-						{formatUsdc(offering.available)} USDC en revisión
-					</span>
-				</div>
-				<button
-					type="button"
-					disabled={!reporting.data || permission.isPending}
+					className={styles.primary}
+					disabled={busy}
 					onClick={() =>
-						permission.mutate(async (client, admin) =>
+						approve.mutate(async (client, admin) =>
 							submit(
-								await client.set_revenue_reporting({
+								await client.approve_revenue_report({
 									admin,
-									offering_id: offeringId,
-									enabled: !enabled,
+									offering_id: offering.id,
+									report_id: report.id,
 								}),
 							),
 						)
 					}
 				>
-					{enabled
-						? "Revocar permiso de reporte"
-						: "Habilitar reporte de utilidades"}
+					{approve.isPending ? "Firma…" : "Aprobar y repartir"}
+				</button>
+				<button
+					type="button"
+					disabled={busy}
+					onClick={() =>
+						reject.mutate(async (client, admin) =>
+							submit(
+								await client.reject_revenue_report({
+									admin,
+									offering_id: offering.id,
+									report_id: report.id,
+								}),
+							),
+						)
+					}
+				>
+					{reject.isPending ? "Firma…" : "Rechazar"}
 				</button>
 			</div>
-			<RevenueReportList
-				reports={reports}
-				emptyText="Esta empresa aún no ha subido utilidades."
-				reviewing={approve.isPending || reject.isPending}
-				onApprove={(report) =>
-					approve.mutate(async (client, admin) =>
+		</li>
+	)
+}
+
+/** Latest known status per account and role, from recent contract events. */
+function participantsFrom(events: MarketEvent[]) {
+	const seen = new Map<
+		string,
+		{ account: string; role: Role; approved: boolean }
+	>()
+	// Events are newest first, so the first one per key is the current status.
+	for (const event of events) {
+		const role: Role | undefined =
+			event.kind === "issuer_status_changed"
+				? "issuer"
+				: event.kind === "investor_status_changed"
+					? "investor"
+					: undefined
+		if (!role) continue
+		const account = String(event.topics[0])
+		const key = `${role}:${account}`
+		if (!seen.has(key)) {
+			seen.set(key, { account, role, approved: Boolean(event.data.approved) })
+		}
+	}
+	return [...seen.values()]
+}
+
+function Participants({ events }: { events: MarketEvent[] }) {
+	const [account, setAccount] = useState("")
+	const [role, setRole] = useState<Role>("investor")
+	const add = useMarketAction(`${ROLE_LABEL[role]} aprobado`)
+	const target = account.trim()
+	const valid = StrKey.isValidEd25519PublicKey(target)
+	const participants = participantsFrom(events)
+
+	return (
+		<section className={styles.panel}>
+			<p className={styles.eyebrow}>PARTICIPANTES</p>
+			<h2>Quién puede operar en Minka</h2>
+			<form
+				className={styles.approveForm}
+				onSubmit={(event) => {
+					event.preventDefault()
+					if (!valid) return
+					add.mutate(
+						async (client, admin) =>
+							submit(await setStatus(client, admin, role, target, true)),
+						{ onSuccess: () => setAccount("") },
+					)
+				}}
+			>
+				<div className={styles.segmented} role="radiogroup">
+					{(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
+						<button
+							key={r}
+							type="button"
+							role="radio"
+							aria-checked={role === r}
+							onClick={() => setRole(r)}
+						>
+							{ROLE_LABEL[r]}
+						</button>
+					))}
+				</div>
+				<input
+					placeholder="Dirección de la wallet (G…)"
+					aria-label="Dirección de la wallet"
+					value={account}
+					onChange={(event) => setAccount(event.target.value)}
+				/>
+				<button
+					type="submit"
+					className={styles.primary}
+					disabled={!valid || add.isPending}
+				>
+					{add.isPending ? "Firma en tu wallet…" : "Aprobar"}
+				</button>
+			</form>
+			{target !== "" && !valid && (
+				<small className={styles.hint}>
+					Revisa la dirección: debe empezar con G y tener 56 caracteres.
+				</small>
+			)}
+
+			{participants.length > 0 ? (
+				<ul className={styles.participants}>
+					{participants.map((p) => (
+						<ParticipantRow key={`${p.role}:${p.account}`} {...p} />
+					))}
+				</ul>
+			) : (
+				<p className={styles.muted}>
+					No hay aprobaciones en la actividad reciente del contrato.
+				</p>
+			)}
+			<small className={styles.muted}>
+				Lista armada con la actividad on-chain de los últimos días (retención de
+				Stellar RPC).
+			</small>
+		</section>
+	)
+}
+
+function ParticipantRow({
+	account,
+	role,
+	approved,
+}: {
+	account: string
+	role: Role
+	approved: boolean
+}) {
+	const toggle = useMarketAction(
+		approved
+			? `${ROLE_LABEL[role]} revocado`
+			: `${ROLE_LABEL[role]} aprobado de nuevo`,
+	)
+	return (
+		<li>
+			<code title={account}>{shortId(account, 6)}</code>
+			<span>{ROLE_LABEL[role]}</span>
+			<span className={approved ? styles.badgeOk : styles.badgeMuted}>
+				{approved ? "aprobado" : "revocado"}
+			</span>
+			<button
+				type="button"
+				disabled={toggle.isPending}
+				onClick={() =>
+					toggle.mutate(async (client, admin) =>
+						submit(await setStatus(client, admin, role, account, !approved)),
+					)
+				}
+			>
+				{toggle.isPending ? "Firma…" : approved ? "Revocar" : "Aprobar"}
+			</button>
+		</li>
+	)
+}
+
+function setStatus(
+	client: MinkaMarketClient,
+	admin: string,
+	role: Role,
+	account: string,
+	approved: boolean,
+) {
+	return role === "issuer"
+		? client.set_issuer_status({ admin, issuer: account, approved })
+		: client.set_investor_status({ admin, investor: account, approved })
+}
+
+function OfferingControls({
+	offerings,
+	supportsRevenueReports,
+	reportingEnabled,
+}: {
+	offerings: Offering[]
+	supportsRevenueReports: boolean
+	reportingEnabled: (boolean | undefined)[]
+}) {
+	return (
+		<section className={styles.panel}>
+			<p className={styles.eyebrow}>OFERTAS · {offerings.length}</p>
+			<h2>Control por oferta</h2>
+			{offerings.length === 0 ? (
+				<p className={styles.muted}>Aún no hay ofertas publicadas.</p>
+			) : (
+				<ul className={styles.participants}>
+					{offerings.map((offering, i) => (
+						<OfferingControlRow
+							key={offering.id}
+							offering={offering}
+							supportsRevenueReports={supportsRevenueReports}
+							reportingEnabled={reportingEnabled[i]}
+						/>
+					))}
+				</ul>
+			)}
+		</section>
+	)
+}
+
+function OfferingControlRow({
+	offering,
+	supportsRevenueReports,
+	reportingEnabled,
+}: {
+	offering: Offering
+	supportsRevenueReports: boolean
+	reportingEnabled?: boolean
+}) {
+	const pause = useMarketAction(
+		offering.paused
+			? `${offering.symbol} reanudada`
+			: `${offering.symbol} pausada por Minka`,
+	)
+	const permission = useMarketAction(
+		reportingEnabled
+			? `${offering.symbol} ya no puede reportar utilidades`
+			: `${offering.symbol} puede reportar utilidades`,
+	)
+
+	return (
+		<li>
+			<span>
+				<strong>{offering.symbol}</strong>{" "}
+				<span className={styles.muted}>
+					{formatUnits(offering.sold_units)}/
+					{formatUnits(offering.target_units)} · emisor{" "}
+					{shortId(offering.issuer)}
+				</span>
+			</span>
+			{supportsRevenueReports && (
+				<button
+					type="button"
+					disabled={reportingEnabled === undefined || permission.isPending}
+					onClick={() =>
+						permission.mutate(async (client, admin) =>
+							submit(
+								await client.set_revenue_reporting({
+									admin,
+									offering_id: offering.id,
+									enabled: !reportingEnabled,
+								}),
+							),
+						)
+					}
+				>
+					{permission.isPending
+						? "Firma…"
+						: reportingEnabled
+							? "Quitar permiso de utilidades"
+							: "Permitir reportar utilidades"}
+				</button>
+			)}
+			<button
+				type="button"
+				disabled={pause.isPending}
+				onClick={() =>
+					pause.mutate(async (client, caller) =>
 						submit(
-							await client.approve_revenue_report({
-								admin,
-								offering_id: offeringId,
-								report_id: report.id,
+							await client.set_paused({
+								caller,
+								offering_id: offering.id,
+								paused: !offering.paused,
 							}),
 						),
 					)
 				}
-				onReject={(report) =>
-					reject.mutate(async (client, admin) =>
-						submit(
-							await client.reject_revenue_report({
-								admin,
-								offering_id: offeringId,
-								report_id: report.id,
-							}),
-						),
-					)
-				}
-			/>
-		</div>
+			>
+				{pause.isPending ? "Firma…" : offering.paused ? "Reanudar" : "Pausar"}
+			</button>
+		</li>
 	)
 }

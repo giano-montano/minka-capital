@@ -6,10 +6,17 @@ interface Props {
 	offerings: Offering[]
 	selectedId?: number
 	onSelect: (id: number) => void
+	/** Connected wallet, to flag the viewer's own offerings. */
+	address?: string
 }
 
 /** Every offering published on the platform; picking one drives the page. */
-export function OfferingCatalog({ offerings, selectedId, onSelect }: Props) {
+export function OfferingCatalog({
+	offerings,
+	selectedId,
+	onSelect,
+	address,
+}: Props) {
 	return (
 		<section>
 			<p className={styles.eyebrow}>OFERTAS PUBLICADAS · {offerings.length}</p>
@@ -29,6 +36,12 @@ export function OfferingCatalog({ offerings, selectedId, onSelect }: Props) {
 								{offering.symbol}
 								{offering.paused && (
 									<span className={styles.badgeWarn}>pausada</span>
+								)}
+								{offering.sold_units >= offering.target_units && (
+									<span className={styles.badgeMuted}>colocada</span>
+								)}
+								{address && offering.issuer === address && (
+									<span className={styles.badgeOk}>tu oferta</span>
 								)}
 							</span>
 							<strong>{offering.name}</strong>

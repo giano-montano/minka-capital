@@ -1,7 +1,8 @@
 # CLAUDE.md — Minka Capital (Stellar hackathon)
 
 > **ANTES DE HACER NADA:** lee los archivos de `handoffs/` que no tengan su
-> sección "Estado" marcada, empezando por `handoffs/2026-09-25-giano-a-leo.md`,
+> sección "Estado" marcada, empezando por el más antiguo (`handoffs/2026-09-25-giano-a-leo.md`, luego
+> `handoffs/2026-09-26-dashboard-por-roles.md`),
 > y ejecuta su checklist. Contiene acciones pendientes indispensables
 > (redeploy de Cloudflare con el contrato nuevo).
 
@@ -53,12 +54,15 @@ _scaffold_base/contracts/minka-market/ Contrato Soroban (lib.rs) + 27 tests (tes
 _scaffold_base/app/                    Dashboard React/Vite
   src/pages/Landing.tsx                Landing en `/` (el dashboard vive en `/app`)
   src/features/landing/                Globo WebGL de Perú (cobe), chakana y estilos de la landing
-  src/features/market/                 Todo el código del dashboard de Minka
+  src/features/market/                 Todo el código del dashboard de Minka (pestañas por rol:
+                                       ExploreTab, PortfolioTab, IssuerPanel = Mi empresa,
+                                       PlatformAdminPanel = Minka, ActivityTab en MarketDashboard)
     contract.ts        Cliente (contract.Client.from, sin bindings), lecturas, errores
     useMarket.ts       Hooks react-query + useMarketAction (firma y envío)
     useMarketEvents.ts Feed en vivo: getEvents del RPC con cursor
-    MarketDashboard.tsx, OfferingCatalog.tsx, OfferingOverview.tsx,
-    InvestorPanel.tsx, IssuerPanel.tsx, PlatformAdminPanel.tsx, EventFeed.tsx
+    MarketDashboard.tsx, WalletStatus.tsx, ExploreTab.tsx, PortfolioTab.tsx,
+    OfferingCatalog.tsx, OfferingOverview.tsx, IssuerPanel.tsx,
+    PlatformAdminPanel.tsx, RevenueReportList.tsx, EventFeed.tsx
   .env.production      IDs públicos usados en el build desplegado
   wrangler.jsonc       Config de Cloudflare Workers (assets + SPA fallback)
 _scaffold_base/scripts/demo-minka-testnet.sh    Demo completa en Testnet (bash): identidades, USDC, deploy y pasos 1-6

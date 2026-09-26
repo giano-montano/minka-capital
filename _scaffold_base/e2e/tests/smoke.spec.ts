@@ -34,7 +34,7 @@ test("testnet-only disclaimer is visible", async ({ page }) => {
 test("Minka offering dashboard is present", async ({ page }) => {
 	await page.goto("/app")
 	await expect(
-		page.getByRole("heading", { name: /Capital para startups/ }),
+		page.getByRole("heading", { name: /Mercado Minka/ }),
 	).toBeVisible()
 })
 

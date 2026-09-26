@@ -11,7 +11,7 @@ El guion hablado está en [`pitch.md`](pitch.md). Tiempo total de preparación: 
 | 0:00 – 0:30 | Landing `/` | El globo entra a Perú. Arrástralo un poco y haz zoom con **+** sobre Lima. |
 | 0:30 – 0:50 | `/app`, catálogo | Sin wallet conectada: `LUMI-RSN`, 10/1000 unidades, capital levantado. |
 | 0:50 – 1:05 | `/app`, feed | Baja al feed "Actividad de la plataforma": despliegue, aprobaciones, inversiones, ingreso, claim. |
-| 1:05 – 1:30 | `/app` como **Luis** | Conecta la wallet de Luis → panel del inversionista con 8 USDC reclamables → **Claim USDC en Testnet** → el evento aparece en el feed. |
+| 1:05 – 1:30 | `/app` como **Luis** | Conecta la wallet de Luis → panel del inversionista con 8 USDC reclamables → **Cobrar 8 USDC** (pestaña Mi portafolio) → el evento aparece en el feed. |
 | 1:30 – 2:00 | Landing `/` | Scroll a "En vivo desde Stellar RPC" (las métricas ya incluyen el claim) y cierre en "Súmate a la minka". |
 
 Toma extra opcional (para una versión larga o para las preguntas): como **LumiSolar**, fondear y registrar un segundo ingreso y ver subir el reclamable de Ana.
@@ -143,7 +143,7 @@ Graba primero una prueba de 10 segundos y revisa audio y nitidez.
 
 1. Abre `http://localhost:5173/` y deja que el globo termine su entrada.
 2. Empieza a grabar y sigue la tabla del paso 0 leyendo [`pitch.md`](pitch.md).
-3. En el claim: **Connect** → elige Freighter → aprueba la conexión → **Claim USDC en Testnet** → firma en Freighter. Quédate en silencio hasta que aparezca el evento `Claim` en el feed (~5 s).
+3. En el claim: **Connect** → elige Freighter → aprueba la conexión → **Cobrar 8 USDC** (pestaña Mi portafolio) → firma en Freighter. Quédate en silencio hasta que aparezca el evento `Claim` en el feed (~5 s).
 4. Si algo falla en vivo, detén la grabación, corre `./scripts/demo-minka-testnet.sh` de nuevo (paso 3), reinicia `npx vite` para que tome el `.env.local` nuevo y repite desde el paso 6.
 
 ## 9. Problemas comunes

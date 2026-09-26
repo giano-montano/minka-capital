@@ -102,7 +102,7 @@
 
 .metrics {
 	display: grid;
-	grid-template-columns: repeat(4, 1fr);
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 	gap: 1rem;
 }
 .metrics article {
@@ -440,6 +440,401 @@ button:disabled {
 	background: var(--color-bg);
 }
 
+/* ---------- Workspace shell ---------- */
+.dashHeader {
+	display: flex;
+	justify-content: space-between;
+	align-items: end;
+	gap: 1.5rem;
+	padding-top: 1rem;
+}
+.dashHeader h1 {
+	margin: 0;
+	font-size: clamp(1.8rem, 4vw, 2.6rem);
+	letter-spacing: -0.04em;
+}
+.dashHeader aside {
+	display: grid;
+	gap: 0.2rem;
+	font-size: 0.8rem;
+	color: #4b725f;
+	text-align: right;
+}
+.dashHeader aside strong {
+	color: #20523d;
+}
+
+.walletBar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem 1.5rem;
+	padding: 1rem 1.25rem;
+	border: 1px solid var(--color-border);
+	border-radius: 14px;
+	background: var(--color-bg);
+}
+.walletBar > div:first-child {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.6rem;
+}
+.addressChip {
+	font-family: Inconsolata, monospace;
+	font-size: 0.9rem;
+	padding: 0.3rem 0.7rem;
+	border-radius: 99px;
+	border: 1px solid var(--color-border);
+	background: var(--color-surface);
+	cursor: pointer;
+}
+.roleChips {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+.walletBalance {
+	display: grid;
+	text-align: right;
+}
+.walletBalance strong {
+	font-size: 1.25rem;
+}
+.walletNotice {
+	flex-basis: 100%;
+	margin: 0;
+	padding: 0.7rem 0.9rem;
+	border-radius: 10px;
+	background: #fdf1d8;
+	color: #6b4700;
+	font-size: 0.88rem;
+}
+
+.tabs {
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	display: flex;
+	gap: 0.25rem;
+	overflow-x: auto;
+	padding: 0.35rem;
+	border-radius: 12px;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	scrollbar-width: none;
+}
+.tabs button {
+	flex: 0 0 auto;
+	border: 0;
+	background: transparent;
+	padding: 0.6rem 1rem;
+	border-radius: 9px;
+	font-weight: 600;
+	color: var(--color-text-muted);
+	cursor: pointer;
+}
+.tabs button[aria-selected="true"] {
+	background: var(--color-bg);
+	color: var(--color-text);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.tabs .tabHot {
+	color: #1f6f4a;
+}
+.tabs .tabHot::after {
+	content: "";
+	display: inline-block;
+	width: 7px;
+	height: 7px;
+	margin-left: 0.4rem;
+	border-radius: 50%;
+	background: #38a169;
+	vertical-align: middle;
+}
+
+.segmented {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 0.25rem;
+	padding: 0.25rem;
+	border-radius: 10px;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+}
+.segmented button {
+	border: 0;
+	background: transparent;
+	padding: 0.45rem 0.8rem;
+	border-radius: 7px;
+	font-weight: 600;
+	color: var(--color-text-muted);
+	cursor: pointer;
+}
+.segmented button[aria-selected="true"],
+.segmented button[aria-checked="true"] {
+	background: var(--color-bg);
+	color: var(--color-text);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.okNote {
+	margin: 0;
+	padding: 0.6rem 0.8rem;
+	border-radius: 10px;
+	background: #eff9f3;
+	color: #20523d;
+	font-size: 0.88rem;
+}
+.metricHot {
+	border-color: #38a169 !important;
+	background: #f4fbf7 !important;
+}
+
+/* ---------- Explore: invest box ---------- */
+.investBox {
+	display: grid;
+	grid-template-columns: 1fr minmax(280px, 380px);
+	gap: 2rem;
+	padding: 1.5rem;
+	border: 2px solid #cce8d7;
+	border-radius: 16px;
+	background: linear-gradient(135deg, #f4fbf7, var(--color-bg));
+}
+.investBox h2 {
+	margin: 0 0 0.5rem;
+	letter-spacing: -0.03em;
+}
+.investBox > div:first-child {
+	display: grid;
+	gap: 0.5rem;
+	align-content: start;
+}
+.investForm {
+	display: grid;
+	gap: 0.75rem;
+	align-content: start;
+}
+.investForm label {
+	display: grid;
+	gap: 0.35rem;
+	font-weight: 600;
+	font-size: 0.85rem;
+}
+.investForm input {
+	font: inherit;
+	font-size: 1.3rem;
+	padding: 0.6rem 0.8rem;
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	background: var(--color-bg);
+	color: var(--color-text);
+	min-width: 0;
+}
+.quickPicks {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+}
+.quickPicks button {
+	flex: 1;
+	padding: 0.4rem 0.6rem;
+	border-radius: 8px;
+	border: 1px solid var(--color-border);
+	background: var(--color-bg);
+	cursor: pointer;
+}
+.quickPicks button[aria-pressed="true"] {
+	border-color: #38a169;
+	background: #eff9f3;
+}
+.summary {
+	display: grid;
+	gap: 0.3rem;
+	margin: 0;
+	font-size: 0.9rem;
+}
+.summary div {
+	display: flex;
+	justify-content: space-between;
+}
+.summary dt {
+	color: var(--color-text-muted);
+}
+.summary dd {
+	margin: 0;
+	font-weight: 600;
+}
+
+/* ---------- Portfolio ---------- */
+.holdings,
+.queue,
+.participants {
+	list-style: none;
+	padding: 0;
+	margin: 1rem 0 0;
+	display: grid;
+	gap: 0.6rem;
+}
+.holdings li,
+.queue li {
+	display: grid;
+	grid-template-columns: 1fr auto auto;
+	align-items: center;
+	gap: 1rem;
+	padding: 1rem;
+	border: 1px solid var(--color-border);
+	border-radius: 12px;
+	background: var(--color-bg);
+}
+.holdings li > div:first-child,
+.queue li > div:first-child {
+	display: grid;
+	gap: 0.2rem;
+}
+.holdingClaim {
+	display: grid;
+	text-align: right;
+}
+.holdingClaim strong {
+	font-size: 1.2rem;
+}
+.linkButton {
+	display: grid;
+	gap: 0.15rem;
+	padding: 0;
+	border: 0;
+	background: none;
+	text-align: left;
+	font: inherit;
+	color: inherit;
+	cursor: pointer;
+}
+.linkButton strong {
+	font-size: 1.05rem;
+}
+.linkButton:hover strong {
+	text-decoration: underline;
+}
+
+/* ---------- Company console ---------- */
+.manage {
+	display: grid;
+	gap: 1.25rem;
+	margin-top: 1.25rem;
+}
+.manageHeader {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: start;
+	gap: 1rem;
+}
+.manageHeader h2 {
+	margin: 0;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.6rem;
+	letter-spacing: -0.03em;
+}
+.manageHeader p {
+	margin: 0.3rem 0 0;
+}
+.manageGrid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+	gap: 1rem;
+	align-items: start;
+}
+.box {
+	display: grid;
+	gap: 0.6rem;
+	padding: 1.1rem;
+	border: 1px solid var(--color-border);
+	border-radius: 14px;
+	background: var(--color-bg);
+}
+.box h3 {
+	margin: 0;
+	font-size: 1rem;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+}
+.box p {
+	margin: 0;
+}
+.box .form {
+	margin-top: 0.25rem;
+}
+.bigNumber {
+	font-size: 1.6rem;
+	font-weight: 700;
+	letter-spacing: -0.03em;
+}
+.bigNumber small {
+	font-size: 0.8rem;
+	font-weight: 500;
+	color: var(--color-text-muted);
+}
+.inputWithAction {
+	display: flex;
+	gap: 0.4rem;
+}
+.inputWithAction input {
+	flex: 1;
+}
+.checkbox {
+	display: flex !important;
+	align-items: center;
+	gap: 0.5rem !important;
+	font-weight: 500 !important;
+}
+.createForm {
+	display: grid;
+	gap: 0.75rem;
+}
+.createForm h2 {
+	margin: 0;
+	letter-spacing: -0.03em;
+}
+
+/* ---------- Minka console ---------- */
+.approveForm {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+	margin-top: 1rem;
+	align-items: center;
+}
+.approveForm input {
+	flex: 1 1 280px;
+	font: inherit;
+	padding: 0.6rem 0.75rem;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-bg);
+	color: var(--color-text);
+	min-width: 0;
+}
+.participants li {
+	display: grid;
+	grid-template-columns: 1fr auto auto auto;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.6rem 0.9rem;
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	background: var(--color-bg);
+	font-size: 0.9rem;
+}
+.participants code {
+	font-family: Inconsolata, monospace;
+}
+
 @media (max-width: 900px) {
 	.adminGrid,
 	.formGrid {
@@ -465,8 +860,23 @@ button:disabled {
 		min-width: 0;
 	}
 	.events li,
-	.reports li {
+	.reports li,
+	.holdings li,
+	.queue li,
+	.participants li {
 		grid-template-columns: 1fr;
-		gap: 0.25rem;
+		gap: 0.4rem;
+	}
+	.investBox {
+		grid-template-columns: 1fr;
+		padding: 1.1rem;
+	}
+	.dashHeader {
+		display: grid;
+	}
+	.dashHeader aside,
+	.walletBalance,
+	.holdingClaim {
+		text-align: left;
 	}
 }
