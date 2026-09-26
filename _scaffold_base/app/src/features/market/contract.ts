@@ -1,14 +1,18 @@
 import {
 	Account,
 	Address,
+	Asset,
 	BASE_FEE,
 	Contract,
+	Horizon,
+	Operation,
 	TransactionBuilder,
 	contract,
 	rpc,
 	scValToNative,
 } from "@stellar/stellar-sdk"
 import {
+	horizonUrl,
 	networkPassphrase,
 	rpcUrl,
 	signTransaction,
@@ -163,6 +167,87 @@ export async function fetchTokenBalance(
 	}
 	const retval = simulation.result?.retval
 	return retval ? BigInt(scValToNative(retval) as bigint) : 0n
+}
+
+const horizonServer = new Horizon.Server(horizonUrl, { allowHttp })
+
+let assetPromise: Promise<Asset> | undefined
+
+/**
+ * The classic asset behind a SAC. Its `name()` is `CODE:ISSUER`, so the
+ * trustline target always matches whatever SAC the app is configured with.
+ */
+function fetchSacAsset(tokenId: string): Promise<Asset> {
+	assetPromise ??= (async () => {
+		const tx = new TransactionBuilder(new Account(SIMULATION_SOURCE, "0"), {
+			fee: BASE_FEE,
+			networkPassphrase,
+		})
+			.addOperation(new Contract(tokenId).call("name"))
+			.setTimeout(30)
+			.build()
+		const simulation = await rpcServer.simulateTransaction(tx)
+		if (rpc.Api.isSimulationError(simulation)) {
+			throw new Error(simulation.error)
+		}
+		const retval = simulation.result?.retval
+		const name = retval ? (scValToNative(retval) as string) : ""
+		const [code, issuer] = name.split(":")
+		if (!code || !issuer) return Asset.native()
+		return new Asset(code, issuer)
+	})().catch((error: unknown) => {
+		assetPromise = undefined
+		throw error
+	})
+	return assetPromise
+}
+
+/**
+ * Whether `holder` can receive the SAC's classic asset. Payments of a classic
+ * asset (e.g. from Circle's faucet) fail without a trustline, so a wallet
+ * that never added one silently gets nothing.
+ */
+export async function fetchHasTrustline(
+	tokenId: string,
+	holder: string,
+): Promise<boolean> {
+	const asset = await fetchSacAsset(tokenId)
+	if (asset.isNative()) return true
+	try {
+		const account = await horizonServer.loadAccount(holder)
+		return account.balances.some(
+			(balance) =>
+				"asset_code" in balance &&
+				balance.asset_code === asset.getCode() &&
+				balance.asset_issuer === asset.getIssuer(),
+		)
+	} catch {
+		// Unfunded accounts do not exist yet and cannot hold a trustline.
+		return false
+	}
+}
+
+/** Adds a trustline to the SAC's classic asset, signed by the connected wallet. */
+export async function addTrustline(
+	tokenId: string,
+	holder: string,
+): Promise<{ hash?: string }> {
+	const asset = await fetchSacAsset(tokenId)
+	const account = await horizonServer.loadAccount(holder)
+	const tx = new TransactionBuilder(account, {
+		fee: BASE_FEE,
+		networkPassphrase,
+	})
+		.addOperation(Operation.changeTrust({ asset }))
+		.setTimeout(120)
+		.build()
+	const { signedTxXdr } = await signTransaction(tx.toXDR(), {
+		networkPassphrase,
+		address: holder,
+	})
+	const signed = TransactionBuilder.fromXDR(signedTxXdr, networkPassphrase)
+	const response = await horizonServer.submitTransaction(signed)
+	return { hash: response.hash }
 }
 
 /** Signs with the connected wallet, submits, and waits for the ledger. */

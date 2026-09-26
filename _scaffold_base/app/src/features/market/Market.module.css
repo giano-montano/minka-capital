@@ -880,3 +880,7 @@ button:disabled {
 		text-align: left;
 	}
 }
+
+.walletNotice p {
+	margin: 0 0 0.6rem;
+}

@@ -157,6 +157,7 @@ export function MarketDashboard() {
 					<WalletStatus
 						address={address}
 						usdcBalance={balance.data}
+						usdcToken={snapshot.data?.usdc}
 						isAdmin={isAdmin}
 						isIssuer={isIssuer}
 						isInvestor={isInvestor}

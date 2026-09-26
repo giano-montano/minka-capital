@@ -9,11 +9,13 @@ import { useNotification } from "../../hooks/useNotification"
 import { useWallet } from "../../hooks/useWallet"
 import { minkaConfig } from "../../lib/minkaConfig"
 import {
+	addTrustline,
 	describeError,
 	fetchMarketSnapshot,
 	fetchPosition,
 	fetchRevenueReporting,
 	fetchRoles,
+	fetchHasTrustline,
 	fetchTokenBalance,
 	getMarketClient,
 	submit,
@@ -30,6 +32,8 @@ export const marketKeys = {
 	reports: (offeringId?: number) => ["minka", "reports", offeringId] as const,
 	balance: (token?: string, address?: string) =>
 		["minka", "balance", token, address] as const,
+	trustline: (token?: string, address?: string) =>
+		["minka", "trustline", token, address] as const,
 }
 
 export function useMarketSnapshot() {
@@ -110,6 +114,45 @@ export function useTokenBalance(token?: string, address?: string) {
 		queryFn: () => fetchTokenBalance(token as string, address as string),
 		enabled: Boolean(token && address),
 		refetchInterval: REFRESH_MS,
+	})
+}
+
+/** Whether the wallet has a trustline to the USDC behind the SAC. */
+export function useHasTrustline(token?: string, address?: string) {
+	return useQuery({
+		queryKey: marketKeys.trustline(token, address),
+		queryFn: () => fetchHasTrustline(token as string, address as string),
+		enabled: Boolean(token && address),
+		refetchInterval: REFRESH_MS,
+	})
+}
+
+/** Signs a `changeTrust` so the connected wallet can receive USDC. */
+export function useAddTrustline(token?: string) {
+	const { address, updateBalances } = useWallet()
+	const { addNotification } = useNotification()
+	const refresh = useRefreshMarket()
+
+	return useMutation({
+		mutationFn: () => {
+			if (!address) throw new Error("Conecta tu wallet primero.")
+			if (!token) throw new Error("USDC no está configurado.")
+			return addTrustline(token, address)
+		},
+		onSuccess: ({ hash }) => {
+			addNotification(
+				hash
+					? `USDC habilitado en tu wallet · tx ${hash.slice(0, 8)}…`
+					: "USDC habilitado en tu wallet",
+				"success",
+			)
+			void refresh()
+			void updateBalances()
+		},
+		onError: (error) => {
+			console.error("[Minka] Habilitar USDC falló:", error)
+			addNotification(describeError(error), "error")
+		},
 	})
 }
 

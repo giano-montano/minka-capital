@@ -2,10 +2,13 @@ import { connectWallet } from "@stellar-scaffold/app-lib"
 import { useState } from "react"
 import { formatUsdc, shortId } from "./format"
 import styles from "./Market.module.css"
+import { useAddTrustline, useHasTrustline } from "./useMarket"
 
 interface Props {
 	address?: string
 	usdcBalance?: bigint
+	/** SAC of the USDC the market settles in. */
+	usdcToken?: string
 	isAdmin: boolean
 	isIssuer: boolean
 	isInvestor: boolean
@@ -19,12 +22,15 @@ interface Props {
 export function WalletStatus({
 	address,
 	usdcBalance,
+	usdcToken,
 	isAdmin,
 	isIssuer,
 	isInvestor,
 	rolesLoading,
 }: Props) {
 	const [copied, setCopied] = useState(false)
+	const trustline = useHasTrustline(usdcToken, address)
+	const addTrustline = useAddTrustline(usdcToken)
 
 	if (!address) {
 		return (
@@ -94,6 +100,24 @@ export function WalletStatus({
 					{usdcBalance !== undefined ? formatUsdc(usdcBalance) : "—"}
 				</strong>
 			</div>
+			{trustline.data === false && (
+				<div className={styles.walletNotice}>
+					<p>
+						Tu wallet todavía no acepta USDC: sin esa trustline, los USDC que te
+						envíen (incluido el faucet de Circle) se rechazan y no llegan.
+						Habilítalo con una firma en Freighter y luego vuelve a pedir USDC en
+						faucet.circle.com.
+					</p>
+					<button
+						type="button"
+						className={styles.primary}
+						disabled={addTrustline.isPending}
+						onClick={() => addTrustline.mutate()}
+					>
+						{addTrustline.isPending ? "Firmando…" : "Habilitar USDC"}
+					</button>
+				</div>
+			)}
 			{noRole && (
 				<p className={styles.walletNotice}>
 					Tu wallet aún no está aprobada. Copia tu dirección (botón de arriba) y
