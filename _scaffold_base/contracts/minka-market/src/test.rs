@@ -505,3 +505,25 @@ fn rejects_empty_claim() {
     s.client.invest(&s.alice, &s.lumi, &10);
     s.client.claim(&s.alice, &s.lumi);
 }
+
+#[test]
+fn offering_tracks_lifetime_distribution_and_investor_count() {
+    let env = Env::default();
+    let s = setup(&env);
+    s.client.invest(&s.alice, &s.lumi, &30);
+    s.client.invest(&s.alice, &s.lumi, &30);
+    s.client.invest(&s.bob, &s.lumi, &40);
+    assert_eq!(s.client.get_offering(&s.lumi).investor_count, 2);
+
+    s.distribute(s.lumi, 1, 1_000);
+    s.client.claim(&s.alice, &s.lumi);
+    s.client.claim(&s.bob, &s.lumi);
+    let offering = s.client.get_offering(&s.lumi);
+    // Claims empty `allocated`, but the lifetime total keeps the history.
+    assert_eq!((offering.allocated, offering.total_distributed), (0, 1_000));
+
+    // A rejected report never counts as distributed.
+    s.client.submit_revenue_report(&s.issuer, &s.lumi, &2, &500);
+    s.client.reject_revenue_report(&s.admin, &s.lumi, &1);
+    assert_eq!(s.client.get_offering(&s.lumi).total_distributed, 1_000);
+}

@@ -19,6 +19,13 @@ export interface Offering {
 	available: bigint
 	/** Distributions assigned to revenue events and owed to investors. */
 	allocated: bigint
+	/**
+	 * Lifetime revenue distributed, kept on-chain. Missing on contracts
+	 * deployed before revenue reports (e.g. CDQ7…).
+	 */
+	total_distributed?: bigint
+	/** Distinct investors in this offering; missing on older contracts. */
+	investor_count?: number
 }
 
 /** Mirrors the contract's `ReportStatus` (a u32-backed enum). */

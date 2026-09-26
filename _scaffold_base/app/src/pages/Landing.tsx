@@ -11,7 +11,7 @@ import { minkaConfig } from "../lib/minkaConfig"
 
 const NO_OFFERINGS: Offering[] = []
 
-const STEPS = [
+const steps = (revenueReports: boolean) => [
 	{
 		role: "Minka",
 		title: "Aprueba a los participantes",
@@ -30,15 +30,23 @@ const STEPS = [
 	{
 		role: "Todos",
 		title: "Cobran cada venta",
-		body: "La empresa registra sus ingresos y el contrato reparte el retorno pro-rata. Cada inversionista lo reclama cuando quiere.",
+		body: revenueReports
+			? "La empresa sube sus utilidades en USDC, Minka las aprueba y el contrato las reparte pro-rata. Cada inversionista las reclama cuando quiere."
+			: "La empresa registra sus ingresos y el contrato reparte el retorno pro-rata. Cada inversionista lo reclama cuando quiere.",
 	},
 ]
 
-const WHY_STELLAR = [
+// Protocol facts about Stellar and this contract's design, not market data.
+const whyStellar = (revenueReports: boolean) => [
 	["~5 s", "para liquidar cada inversión y cada claim en Stellar"],
 	["USDC", "de Circle vía Stellar Asset Contract, sin puentes ni wrappers"],
 	["100 %", "de los movimientos emite eventos Soroban auditables"],
-	["3", "compartimentos de tesorería por oferta: capital, fondeo y retornos"],
+	[
+		"3",
+		revenueReports
+			? "compartimentos de tesorería por oferta: capital, utilidades por aprobar y retornos"
+			: "compartimentos de tesorería por oferta: capital, fondeo y retornos",
+	],
 ]
 
 export default function Landing() {
@@ -50,14 +58,25 @@ export default function Landing() {
 		(sum, o) => sum + o.sold_units * o.unit_price,
 		0n,
 	)
-	const distributed = feed.events
-		.filter((e) => e.kind === "revenue_recorded")
-		.reduce((sum, e) => sum + BigInt(String(e.data.amount ?? 0)), 0n)
-	const investors = new Set(
-		feed.events
-			.filter((e) => e.kind === "investment_recorded")
-			.map((e) => String(e.topics[1])),
-	).size
+	const onChainTotals = offerings.every(
+		(o) => o.total_distributed !== undefined && o.investor_count !== undefined,
+	)
+	const distributed = onChainTotals
+		? offerings.reduce((sum, o) => sum + (o.total_distributed ?? 0n), 0n)
+		: feed.events
+				.filter((e) => e.kind === "revenue_recorded")
+				.reduce((sum, e) => sum + BigInt(String(e.data.amount ?? 0)), 0n)
+	const investors = onChainTotals
+		? offerings.reduce((sum, o) => sum + (o.investor_count ?? 0), 0)
+		: new Set(
+				feed.events
+					.filter((e) => e.kind === "investment_recorded")
+					.map((e) => String(e.topics[1])),
+			).size
+	// Older contracts have no lifetime counters: once RPC prunes events these
+	// two figures only cover the retained window, so say so.
+	const partialHistory = !onChainTotals && feed.historyTruncated
+	const revenueReports = snapshot.data?.supportsRevenueReports ?? false
 	const symbols = new Map(offerings.map((o) => [o.id, o.symbol]))
 	const symbolOf = (id: number) => symbols.get(id) ?? `Oferta #${id}`
 	const live = minkaConfig.isContractConfigured && !feed.error
@@ -67,10 +86,18 @@ export default function Landing() {
 		{ value: `${formatUsdc(capital, 0)} USDC`, label: "capital levantado" },
 		{
 			value: `${formatUsdc(distributed, 0)} USDC`,
-			label: "retornos distribuidos",
+			label: partialHistory
+				? "retornos distribuidos (últimos días)"
+				: "retornos distribuidos",
 		},
-		{ value: String(investors), label: "inversionistas" },
+		{
+			value: String(investors),
+			label: partialHistory
+				? "inversionistas (últimos días)"
+				: "inversionistas",
+		},
 	]
+	const statsLoading = snapshot.isLoading || (!onChainTotals && feed.isLoading)
 
 	return (
 		<div className={styles.landing}>
@@ -129,7 +156,7 @@ export default function Landing() {
 						{stats.slice(0, 3).map((s) => (
 							<div key={s.label}>
 								<dt>{s.label}</dt>
-								<dd>{snapshot.isLoading ? "…" : s.value}</dd>
+								<dd>{statsLoading ? "…" : s.value}</dd>
 							</div>
 						))}
 					</dl>
@@ -148,7 +175,7 @@ export default function Landing() {
 				<p className={styles.eyebrow}>Cómo funciona</p>
 				<h2>Tres roles, un contrato, cero intermediarios opacos.</h2>
 				<ol className={styles.steps}>
-					{STEPS.map((step, i) => (
+					{steps(revenueReports).map((step, i) => (
 						<li key={step.title}>
 							<span className={styles.stepNum}>0{i + 1}</span>
 							<span className={styles.stepRole}>{step.role}</span>
@@ -169,7 +196,7 @@ export default function Landing() {
 					<dl className={styles.statGrid}>
 						{stats.map((s) => (
 							<div key={s.label}>
-								<dd>{snapshot.isLoading ? "…" : s.value}</dd>
+								<dd>{statsLoading ? "…" : s.value}</dd>
 								<dt>{s.label}</dt>
 							</div>
 						))}
@@ -199,7 +226,7 @@ export default function Landing() {
 				<p className={styles.eyebrow}>Por qué Stellar</p>
 				<h2>Finanzas de alta velocidad con reglas que no se pueden saltar.</h2>
 				<ul className={styles.why}>
-					{WHY_STELLAR.map(([value, text]) => (
+					{whyStellar(revenueReports).map(([value, text]) => (
 						<li key={value}>
 							<strong>{value}</strong>
 							<span>{text}</span>

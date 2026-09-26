@@ -113,6 +113,10 @@ pub struct Offering {
     /// Approved revenue owed to investors (claimable).
     /// Rounding dust from pro-rata division stays here.
     pub allocated: i128,
+    /// Lifetime revenue approved and distributed to investors (never decreases).
+    pub total_distributed: i128,
+    /// Distinct wallets that ever invested in this offering.
+    pub investor_count: u32,
 }
 
 #[contracttype]
@@ -316,6 +320,8 @@ impl MinkaMarket {
             raised: 0,
             available: 0,
             allocated: 0,
+            total_distributed: 0,
+            investor_count: 0,
         };
         Self::save_offering(&env, &offering);
         env.storage()
@@ -502,6 +508,10 @@ impl MinkaMarket {
 
         offering.available -= report.amount;
         offering.allocated += report.amount;
+        offering.total_distributed = offering
+            .total_distributed
+            .checked_add(report.amount)
+            .unwrap_or_else(|| panic_with_error!(&env, Error::ArithmeticOverflow));
         let increment = report
             .amount
             .checked_mul(SCALE)
@@ -594,6 +604,9 @@ impl MinkaMarket {
 
         let mut position = Self::position(&env, offering_id, &investor);
         Self::settle_position(&mut position, offering.revenue_per_unit_scaled);
+        if position.units == 0 {
+            offering.investor_count += 1;
+        }
         position.units += units;
         offering.sold_units = sold_units;
         offering.raised = offering
