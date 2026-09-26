@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom"
 import { Chakana } from "../features/landing/Chakana"
+import { HowItWorks } from "../features/landing/HowItWorks"
 import styles from "../features/landing/Landing.module.css"
 import { PeruGlobe } from "../features/landing/PeruGlobe"
 import { describeEvent } from "../features/market/EventFeed"
@@ -11,29 +12,30 @@ import { minkaConfig } from "../lib/minkaConfig"
 
 const NO_OFFERINGS: Offering[] = []
 
-const steps = (revenueReports: boolean) => [
+// Rosa's three dead ends: the problem the pitch opens with.
+const deadEnds = [
 	{
-		role: "Minka",
-		title: "Aprueba a los participantes",
-		body: "La plataforma valida empresas emisoras e inversionistas (KYC demo) con una allowlist on-chain.",
+		who: "El banco",
+		says: "“Necesito garantías y tres años de estados financieros.”",
+		cost: "Rosa no tiene casa que hipotecar.",
 	},
 	{
-		role: "Empresa",
-		title: "Publica su oferta",
-		body: "Cada startup define precio y unidades de su nota de participación en ingresos. Tras la primera venta, el precio queda fijo.",
+		who: "El fondo de inversión",
+		says: "“Te damos el capital a cambio del 30 % de tu empresa.”",
+		cost: "Rosa pierde lo que construyó.",
 	},
 	{
-		role: "Inversionista",
-		title: "Invierte en USDC",
-		body: "Compra unidades con USDC. El pago queda en custodia del contrato, separado de los fondos de cualquier otra oferta.",
+		who: "Su comunidad",
+		says: "“Yo le invertiría a Rosa… pero ¿cómo? ¿y cómo sé que me paga?”",
+		cost: "El capital existe, pero no llega.",
 	},
-	{
-		role: "Todos",
-		title: "Cobran cada venta",
-		body: revenueReports
-			? "La empresa sube sus utilidades en USDC, Minka las aprueba y el contrato las reparte pro-rata. Cada inversionista las reclama cuando quiere."
-			: "La empresa registra sus ingresos y el contrato reparte el retorno pro-rata. Cada inversionista lo reclama cuando quiere.",
-	},
+]
+
+// Where Minka goes next: the vision block before the final CTA.
+const vision = [
+	["La bodega", "de la esquina"],
+	["La cafetería", "de tu barrio"],
+	["La startup", "de Rosa"],
 ]
 
 // Protocol facts about Stellar and this contract's design, not market data.
@@ -107,6 +109,7 @@ export default function Landing() {
 					<span>Minka Capital</span>
 				</Link>
 				<nav className={styles.navLinks}>
+					<a href="#problema">El problema</a>
 					<a href="#como-funciona">Cómo funciona</a>
 					<a href="#en-vivo">En vivo</a>
 					<a
@@ -169,21 +172,44 @@ export default function Landing() {
 				</div>
 			</section>
 
+			<a href="#problema" className={styles.scrollCue}>
+				Desliza para conocer a Rosa <span aria-hidden="true">↓</span>
+			</a>
+
 			<div className={styles.tocapu} aria-hidden="true" />
 
-			<section id="como-funciona" className={styles.section}>
-				<p className={styles.eyebrow}>Cómo funciona</p>
-				<h2>Tres roles, un contrato, cero intermediarios opacos.</h2>
-				<ol className={styles.steps}>
-					{steps(revenueReports).map((step, i) => (
-						<li key={step.title}>
-							<span className={styles.stepNum}>0{i + 1}</span>
-							<span className={styles.stepRole}>{step.role}</span>
-							<h3>{step.title}</h3>
-							<p>{step.body}</p>
+			<section id="problema" className={styles.section}>
+				<p className={styles.eyebrow}>El problema</p>
+				<h2>Rosa vende todos los meses. Aun así, nadie la financia.</h2>
+				<p className={styles.sectionLede}>
+					Rosa tiene una startup de paneles solares en Arequipa, con clientes y
+					ventas reales. Para crecer necesita capital, y estas son sus opciones:
+				</p>
+				<ul className={styles.deadEnds}>
+					{deadEnds.map((d) => (
+						<li key={d.who}>
+							<span className={styles.deadX} aria-hidden="true">
+								✕
+							</span>
+							<h3>{d.who}</h3>
+							<p className={styles.quote}>{d.says}</p>
+							<p>{d.cost}</p>
 						</li>
 					))}
-				</ol>
+				</ul>
+				<p className={styles.punchline}>
+					El capital existe. <em>Lo que falta es el puente.</em>
+				</p>
+			</section>
+
+			<section id="como-funciona" className={styles.section}>
+				<p className={styles.eyebrow}>La solución · Minka Capital</p>
+				<h2>Un puente on-chain entre Rosa y su comunidad.</h2>
+				<p className={styles.sectionLede}>
+					En quechua, <strong>mink&apos;a</strong> es trabajo colectivo. Así se
+					ve en cinco pasos:
+				</p>
+				<HowItWorks revenueReports={revenueReports} />
 			</section>
 
 			<section id="en-vivo" className={styles.section}>
@@ -191,7 +217,7 @@ export default function Landing() {
 					<span className={live ? styles.dotLive : styles.dot} />
 					En vivo desde Stellar RPC
 				</p>
-				<h2>El mercado, tal como está en la blockchain ahora mismo.</h2>
+				<h2>No es un mockup: este es el contrato real, ahora mismo.</h2>
 				<div className={styles.liveGrid}>
 					<dl className={styles.statGrid}>
 						{stats.map((s) => (
@@ -235,8 +261,26 @@ export default function Landing() {
 				</ul>
 			</section>
 
+			<section className={styles.section}>
+				<p className={styles.eyebrow}>La visión</p>
+				<h2>Cada venta real, repartida a su comunidad en segundos.</h2>
+				<p className={styles.sectionLede}>
+					El siguiente paso: conectar Minka al punto de venta y a la facturación
+					electrónica de cada negocio, para que los ingresos se reporten solos.
+				</p>
+				<ul className={styles.vision}>
+					{vision.map(([what, where]) => (
+						<li key={what}>
+							<strong>{what}</strong>
+							<span>{where}</span>
+						</li>
+					))}
+				</ul>
+			</section>
+
 			<section className={styles.finalCta}>
 				<Chakana size={56} />
+				<p className={styles.tagline}>El Perú entero invirtiendo en el Perú.</p>
 				<h2>Súmate a la minka.</h2>
 				<p>
 					Conecta Freighter en Testnet y prueba el flujo completo en dos
