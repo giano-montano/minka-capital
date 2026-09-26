@@ -151,10 +151,10 @@ docker run --rm -v "C:/Users/<usuario>/.config/stellar:/config" stellar/stellar-
 ## Pendiente (en orden de prioridad)
 
 1. ~~Demo end-to-end en Testnet~~: hecha el 25/09 sobre `CDQ7…`, con los hashes en el README.
-2. **Redesplegar Cloudflare** (Leo, `npm run deploy`): `.env.production` ya apunta a `CDQ7…`
-   pero el sitio publicado sigue con el build viejo. Después, probar con Freighter
-   en escritorio y celular. Un teammate sin acceso a la cuenta Cloudflare de Leo
-   puede desplegar en la suya con `npx wrangler login` + `npm run deploy` (la URL cambiará).
+2. ~~Redesplegar Cloudflare~~: hecho el 25/09 por Leo (versión `aad5730f`): landing en `/`, dashboard en
+   `/app` sobre `CDQ7…`. Falta probar con Freighter en escritorio y celular. Un teammate sin
+   acceso a la cuenta Cloudflare de Leo puede desplegar en la suya con `npx wrangler login` +
+   `npm run deploy` (la URL cambiará).
 3. **Flujo de utilidades con permiso + aprobación de Minka** (Leo, 25/09):
    contrato (36 tests en verde), dashboard y `demo-minka-testnet.sh` listos en
    `dev-leo`, **sin desplegar** a propósito para no romper la demo de `CDQ7…`

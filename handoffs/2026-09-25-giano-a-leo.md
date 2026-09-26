@@ -87,4 +87,5 @@ Los smoke tests de Playwright (`e2e/tests/smoke.spec.ts`) se actualizaron a `/ap
 
 ## Estado
 
-- [ ] Checklist para Leo completado (fecha, quién): ____
+- [x] Checklist para Leo completado en parte (25/09, Leo + Claude): `git pull`, `npm install`, `tsc`/`eslint`/`vite build` limpios y `npm run deploy` (versión Cloudflare `aad5730f`). Verificado en el sitio: landing con stats en vivo (1 oferta, 100 USDC levantados, 20 USDC distribuidos), `/app` con `LUMI-RSN` y el feed completo, recarga directa de `/app` y `/debug` (HTTP 200).
+- [ ] Pendiente: probar con Freighter (consola de emisora con `GD3LSZ…`) y en celular (arrastre del globo, zoom +/−, sin desborde horizontal).
