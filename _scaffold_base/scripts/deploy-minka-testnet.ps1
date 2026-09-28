@@ -2,8 +2,6 @@
 param(
     [string]$AdminAlias = $env:ADMIN_ALIAS,
     [string]$UsdcSacId = $env:USDC_SAC_ID,
-    [int64]$UnitPrice = $(if ($env:UNIT_PRICE) { $env:UNIT_PRICE } else { 10000000 }),
-    [int64]$TargetUnits = $(if ($env:TARGET_UNITS) { $env:TARGET_UNITS } else { 1000 }),
     [switch]$BuildOnly,
     [switch]$Help
 )
@@ -11,13 +9,17 @@ param(
 if ($Help) {
     @'
 Usage:
-  .\scripts\deploy-minka-testnet.ps1 -AdminAlias admin -UsdcSacId C... -UnitPrice 10000000 -TargetUnits 1000
+  .\scripts\deploy-minka-testnet.ps1 -AdminAlias admin -UsdcSacId C...
   .\scripts\deploy-minka-testnet.ps1 -BuildOnly
 
 Preconditions:
   - The Stellar CLI has an existing Testnet identity for AdminAlias.
   - UsdcSacId is a Stellar Testnet SAC contract address (starts with C), unless BuildOnly is used.
   - No secret key is accepted, created, or stored by this script.
+
+After deployment the platform has no offerings. Approve a company with
+set_issuer_status; that company then publishes offerings (price and units)
+from the dashboard or with create_offering.
 '@ | Write-Output
     exit 0
 }
@@ -28,10 +30,6 @@ if (-not $BuildOnly -and [string]::IsNullOrWhiteSpace($AdminAlias)) {
 
 if (-not $BuildOnly -and $UsdcSacId -notmatch '^C[A-Z2-7]{55}$') {
     throw 'USDC_SAC_ID must be a Stellar contract address beginning with C.'
-}
-
-if ($UnitPrice -le 0 -or $TargetUnits -le 0) {
-    throw 'UNIT_PRICE and TARGET_UNITS must be positive integers in token atomic units and units.'
 }
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -77,26 +75,20 @@ try {
         return
     }
 
+    # The constructor runs in the same transaction as the deployment, so the
+    # platform cannot be initialized by anyone else in between.
     $contractId = & $stellar contract deploy `
         --wasm $wasm `
         --source-account $AdminAlias `
         --network testnet `
-        --alias minka-market-testnet
+        --alias minka-market-testnet `
+        -- `
+        --admin $AdminAlias `
+        --usdc $UsdcSacId
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($contractId)) {
         throw 'Contract deployment failed.'
     }
-    $contractId = $contractId.Trim()
-
-    & $stellar contract invoke `
-        --id $contractId `
-        --source-account $AdminAlias `
-        --network testnet `
-        -- initialize `
-        --admin $AdminAlias `
-        --usdc $UsdcSacId `
-        --unit-price $UnitPrice `
-        --target-units $TargetUnits
-    if ($LASTEXITCODE -ne 0) { throw 'Contract initialization failed.' }
+    $contractId = ($contractId | Select-Object -Last 1).Trim()
 
     Write-Output "Minka Market deployed to Stellar Testnet: $contractId"
     Write-Output "Set MINKA_MARKET_ID=$contractId before starting the dashboard."

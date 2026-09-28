@@ -5,29 +5,27 @@
 
 ## 1. Visión del producto
 
-Minka Capital permite que una startup peruana ficticia, **LumiSolar Perú**, cree una oferta primaria de participaciones simuladas en ingresos futuros (`LUMI-RSN`). Los inversionistas demo aprobados adquieren unidades usando USDC en Stellar Testnet. Cuando la startup reporta ventas, un oráculo autorizado registra eventos de ingreso; el contrato calcula el retorno proporcional y cada inversionista puede reclamar su USDC cuando lo decida.
+Minka Capital es un mercado primario **multi-oferta**: empresas emisoras aprobadas por Minka publican notas simuladas de participación en ingresos futuros, y los inversionistas aprobados compran unidades con USDC en Stellar Testnet. Cuando una empresa reporta ventas, fondea y registra el ingreso en el contrato; el contrato asigna el retorno pro-rata y cada inversionista lo reclama cuando quiera.
+
+La oferta de ejemplo es `LUMI-RSN`, de la startup ficticia **LumiSolar Perú**. En el MVP el ingreso lo registra la propia empresa emisora desde su wallet; un oráculo firmado conectado a POS o facturación es la siguiente etapa (sección 7).
 
 ```mermaid
 flowchart LR
-    Startup["Startup peruana\nLumiSolar Perú"]
+    Minka["Minka (admin de plataforma)\nAprueba emisores e inversionistas"]
+    Startup["Empresa emisora\nLumiSolar Perú"]
     Investors["Inversionistas aprobados\nWallets Stellar"]
-    Platform["Minka Capital\nDashboard React"]
-    Contract["Minka Market\nContrato Soroban"]
-    Vault["Revenue Vault\nUSDC Testnet SAC"]
-    Oracle["Oráculo de ingresos\nPOS / SaaS simulado"]
+    Platform["Dashboard React\nCloudflare Workers"]
+    Contract["minka-market\nContrato Soroban"]
+    USDC["USDC Testnet (Circle)\nSAC / SEP-41"]
     Rpc["Stellar RPC\ngetEvents"]
 
-    Startup -->|"Crea oferta de Revenue Share Notes"| Platform
-    Platform -->|"Transacción firmada"| Contract
-    Investors -->|"Invierte USDC Testnet"| Platform
-    Platform -->|"invest(units)"| Contract
-    Contract <-->|"Transferencias SEP-41"| Vault
-    Startup -->|"Ventas o suscripciones"| Oracle
-    Oracle -->|"record_revenue(event_id, amount)"| Contract
+    Minka -->|"set_issuer_status / set_investor_status"| Platform
+    Startup -->|"create_offering, fund_distributions,\nrecord_revenue, withdraw_raise"| Platform
+    Investors -->|"invest, claim"| Platform
+    Platform -->|"Transacciones firmadas con Freighter"| Contract
+    Contract <-->|"transfer"| USDC
     Contract -->|"Eventos auditables"| Rpc
-    Rpc -->|"Actualizaciones en tiempo real"| Platform
-    Contract -->|"claim()"| Vault
-    Vault -->|"USDC Testnet"| Investors
+    Rpc -->|"Feed en tiempo real"| Platform
 ```
 
 ## 2. Componentes y responsabilidades
@@ -35,16 +33,16 @@ flowchart LR
 ```mermaid
 flowchart TB
     subgraph UI["Capa de experiencia — React / TypeScript"]
-        Dashboard["Dashboard de oferta\ncapital levantado, unidades y progreso"]
-        InvestorPanel["Panel del inversionista\nposición, saldo reclamable y botón Claim"]
-        EventFeed["Feed auditable\ninversiones, ingresos y claims"]
-        AdminPanel["Panel de administrador\naprobación demo y registro de ingresos"]
+        Catalog["Catálogo de ofertas\nprecio, unidades vendidas, capital levantado"]
+        InvestorPanel["Panel del inversionista\nposición, saldo reclamable y Claim"]
+        IssuerPanel["Consola de empresa emisora\npublicar, editar, fondear, registrar ingreso, retirar"]
+        AdminPanel["Consola de Minka\naprobar emisores e inversionistas"]
+        EventFeed["Feed auditable\ntodos los eventos del contrato"]
     end
 
     subgraph OFFCHAIN["Capa off-chain"]
-        Wallet["Wallet compatible con Stellar\nFirma de transacciones"]
-        OracleService["Servicio de oráculo\nvalida venta, firma y genera nonce"]
-        Indexer["Indexador RPC\nconsulta getEvents y conserva cursor"]
+        Wallet["Freighter / Stellar Wallets Kit\nfirma de transacciones"]
+        Indexer["Hook useMarketEvents\ngetEvents con cursor, polling cada 4 s"]
     end
 
     subgraph STELLAR["Stellar Testnet"]
@@ -53,103 +51,129 @@ flowchart TB
         Events["Eventos de contrato\nledger + transaction hash"]
     end
 
-    Dashboard --> Wallet
+    Catalog --> Wallet
     InvestorPanel --> Wallet
+    IssuerPanel --> Wallet
     AdminPanel --> Wallet
     Wallet --> Market
-    OracleService --> Market
     Market --> USDC
     Market --> Events
     Events --> Indexer
     Indexer --> EventFeed
-    Indexer --> Dashboard
 ```
 
 | Componente | Responsabilidad en el MVP | Evidencia para el jurado |
 |---|---|---|
-| `minka_market` | Oferta, allowlist, unidades, eventos de ingresos, cálculo pro-rata y claims | WASM, Contract ID, tests Rust y transacciones Testnet |
-| USDC SAC | Activo de pago y liquidación simulada | Transferencias verificables en Testnet |
-| Oráculo demo | Convierte ventas simuladas en eventos firmados e idempotentes | `event_id`, timestamp y transacción `record_revenue` |
+| `minka-market` | Ofertas, roles, allowlist, tesorería segregada, cálculo pro-rata y claims | WASM, Contract ID, 27 tests Rust y transacciones Testnet |
+| USDC SAC | Activo de pago y liquidación | Transferencias verificables en Testnet |
+| Registro de ingresos | La empresa fondea y registra cada venta con un `event_id` idempotente | Transacciones `fund_distributions` y `record_revenue` |
 | Stellar RPC | Expone eventos del contrato para el dashboard | Feed con ledger, hash y tipo de evento |
-| Dashboard | Muestra estado, retornos y trazabilidad | Demo grabada de punta a punta |
+| Dashboard | Muestra estado, retornos y trazabilidad; firma con la wallet del usuario | Demo en vivo en Cloudflare y video |
 
-## 3. Flujo de emisión e inversión primaria
+### Retención de eventos
+
+Stellar RPC en Testnet conserva unos **7 días** de eventos. El dashboard empieza a leer en `PUBLIC_MINKA_START_LEDGER` (el ledger del despliegue) o, si esa fecha ya salió de la ventana, en el ledger más antiguo que conserva el RPC. En ese caso muestra un aviso con enlace a Stellar Expert, donde la actividad anterior sigue verificable.
+
+## 3. Flujo de alta, publicación e inversión primaria
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Admin as Administrador de Minka
-    participant UI as Dashboard React
-    participant Contract as Minka Market (Soroban)
+    participant Minka as Minka (admin)
+    participant Empresa as Empresa emisora
+    participant Contract as minka-market (Soroban)
     participant USDC as USDC SAC (Testnet)
-    participant Investor as Inversionista aprobado
+    participant Investor as Inversionista
 
-    Admin->>UI: Configura LumiSolar Perú, precio y unidades objetivo
-    UI->>Contract: initialize(admin, usdc, unit_price, target_units)
-    Contract-->>UI: Oferta creada / evento OfferingCreated
+    Minka->>Contract: deploy + __constructor(admin, usdc)
+    Minka->>Contract: set_issuer_status(empresa, true)
+    Contract-->>Minka: IssuerStatusChanged
+    Minka->>Contract: set_investor_status(wallet, true)
+    Contract-->>Minka: InvestorStatusChanged
 
-    Admin->>Contract: set_investor_status(wallet, true)
-    Contract-->>UI: Evento InvestorStatusChanged
+    Empresa->>Contract: create_offering(nombre, símbolo, precio, unidades)
+    Contract-->>Empresa: offering_id + OfferingCreated
+    opt Antes de la primera venta
+        Empresa->>Contract: update_offering(precio, unidades)
+        Contract-->>Empresa: OfferingUpdated
+    end
 
-    Investor->>UI: Conecta wallet y selecciona unidades
-    UI->>Contract: invest(units), firmado por Investor
-    Contract->>USDC: Transferir USDC del inversor al Revenue Vault
-    USDC-->>Contract: Transferencia confirmada
-    Contract->>Contract: Registra unidades y checkpoint de distribución
-    Contract-->>UI: Evento Investment
-    UI-->>Investor: Muestra unidades adquiridas y progreso de la oferta
+    Investor->>Contract: invest(offering_id, units)
+    Contract->>USDC: transfer(inversionista → contrato, units × precio)
+    Contract->>Contract: raised += pago; checkpoint de la posición
+    Contract-->>Investor: InvestmentRecorded
+
+    Empresa->>Contract: withdraw_raise(offering_id, to, amount)
+    Contract->>USDC: transfer(contrato → empresa, amount)
+    Contract-->>Empresa: RaiseWithdrawn
 ```
 
 ### Reglas on-chain aplicadas
 
-1. Solo el administrador puede aprobar wallets y registrar ingresos.
-2. Solo una wallet aprobada puede invertir.
-3. No se permiten unidades ni montos menores o iguales a cero.
-4. No se permite sobrepasar las unidades objetivo de la oferta.
-5. Cada inversión registra un checkpoint: un inversionista nuevo no recibe ingresos generados antes de invertir.
+1. Solo el admin de Minka aprueba o revoca empresas emisoras e inversionistas (allowlist global tipo KYC demo).
+2. Solo una empresa aprobada puede publicar ofertas; solo la empresa dueña de una oferta puede editarla, fondearla, registrar ingresos y retirar su capital.
+3. Solo una wallet aprobada puede invertir, y no se pueden superar las unidades objetivo.
+4. Precio y unidades se editan libremente hasta la primera venta. Después el precio queda fijo y las unidades solo pueden crecer.
+5. La empresa o Minka pueden pausar una oferta; la pausa bloquea inversiones nuevas pero nunca los claims.
+6. Cada inversión registra un checkpoint: un inversionista nuevo no recibe ingresos anteriores a su compra.
+7. No se aceptan montos, precios ni unidades menores o iguales a cero; el nombre admite hasta 64 caracteres y el símbolo hasta 12.
 
-## 4. Flujo de ingresos en tiempo real y distribución
+## 4. Flujo de ingresos y distribución
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Startup as LumiSolar Perú
-    participant Oracle as Oráculo de ingresos
-    participant Contract as Minka Market (Soroban)
+    participant Empresa as Empresa emisora
+    participant Contract as minka-market (Soroban)
+    participant USDC as USDC SAC (Testnet)
     participant RPC as Stellar RPC / getEvents
     participant UI as Dashboard React
     participant Investor as Inversionista
 
-    Startup->>Oracle: Venta simulada: S/ 250 equivalentes
-    Oracle->>Oracle: Genera event_id único, monto, timestamp y firma
-    Oracle->>Contract: record_revenue(event_id, amount)
-    Contract->>Contract: Verifica autorización y que event_id no exista
-    Contract->>Contract: Actualiza ingreso acumulado por unidad
-    Contract-->>RPC: Evento RevenueRecorded
-    RPC-->>UI: Nuevo evento, ledger y transaction hash
-    UI-->>Investor: Actualiza saldo reclamable en tiempo real
+    Empresa->>Contract: fund_distributions(offering_id, amount)
+    Contract->>USDC: transfer(empresa → contrato, amount)
+    Contract->>Contract: available += amount
+    Contract-->>RPC: DistributionFunded
 
-    Investor->>UI: Selecciona Claim USDC
-    UI->>Contract: claim(), firmado por Investor
-    Contract->>Contract: Calcula retorno pendiente y pone saldo en cero
-    Contract-->>Investor: USDC Testnet enviado desde el vault
-    Contract-->>RPC: Evento Claim
+    Empresa->>Contract: record_revenue(offering_id, event_id, amount)
+    Contract->>Contract: Verifica emisor, event_id nuevo y available ≥ amount
+    Contract->>Contract: available → allocated; revenue_per_unit += amount / sold_units
+    Contract-->>RPC: RevenueRecorded
+    RPC-->>UI: Nuevo evento con ledger y hash
+    UI-->>Investor: Saldo reclamable actualizado
+
+    Investor->>Contract: claim(offering_id)
+    Contract->>Contract: Liquida la posición y pone claimable en cero
+    Contract->>USDC: transfer(contrato → inversionista, claimable)
+    Contract-->>RPC: ClaimRecorded
     RPC-->>UI: Feed y saldo actualizados
 ```
+
+### Tesorería segregada por oferta
+
+Cada USDC que el contrato custodia para una oferta está en uno solo de tres compartimentos:
+
+| Compartimento | Entra por | Sale por |
+|---|---|---|
+| `raised` (capital levantado) | `invest` | `withdraw_raise`, solo hacia la empresa emisora |
+| `available` (distribuciones fondeadas sin asignar) | `fund_distributions` | `record_revenue` (pasa a `allocated`) |
+| `allocated` (retornos asignados a inversionistas) | `record_revenue` | `claim` |
+
+Por eso un mismo depósito no puede respaldar dos ingresos, los claims nunca usan capital levantado, el admin de Minka no puede retirar el capital de una empresa y los fondos de una oferta nunca pagan a inversionistas de otra. El redondeo de la división pro-rata deja un residuo mínimo en `allocated`.
 
 ### Protección del evento de ingresos
 
 ```mermaid
 flowchart TD
-    Sale["Evento de venta\nimporte + referencia"] --> Normalize["Normalizar payload\nmonto en unidades atómicas"]
-    Normalize --> Nonce["Asignar event_id único\nnonce / idempotency key"]
-    Nonce --> Sign["Firmar con clave del oráculo\no autorizar desde admin demo"]
-    Sign --> Submit["record_revenue(event_id, amount)"]
-    Submit --> CheckAuth{"¿Administrador/oráculo\nautorizado?"}
-    CheckAuth -->|"No"| RejectAuth["Revertir transacción"]
-    CheckAuth -->|"Sí"| CheckNonce{"¿event_id\nya usado?"}
-    CheckNonce -->|"Sí"| RejectReplay["Revertir: replay detectado"]
-    CheckNonce -->|"No"| Distribute["Actualizar retorno\npro-rata por unidad"]
+    Sale["Venta verificada\nimporte + referencia"] --> Fund["fund_distributions\nla empresa deposita USDC"]
+    Fund --> Submit["record_revenue(offering_id, event_id, amount)"]
+    Submit --> CheckAuth{"¿Firmado por la empresa\ndueña de la oferta?"}
+    CheckAuth -->|"No"| RejectAuth["Revertir: NotIssuer"]
+    CheckAuth -->|"Sí"| CheckNonce{"¿event_id ya usado\nen esta oferta?"}
+    CheckNonce -->|"Sí"| RejectReplay["Revertir: DuplicateRevenueEvent"]
+    CheckNonce -->|"No"| CheckFunds{"¿available ≥ amount?"}
+    CheckFunds -->|"No"| RejectFunds["Revertir: InsufficientDistributionFunds"]
+    CheckFunds -->|"Sí"| Distribute["Asignar retorno\npro-rata por unidad"]
     Distribute --> Emit["Emitir RevenueRecorded\npara RPC y auditoría"]
 ```
 
@@ -157,62 +181,80 @@ flowchart TD
 
 ```mermaid
 classDiagram
-    class Offering {
+    class Platform {
         +Address admin
-        +Address usdc_sac
+        +Address usdc
+        +u32 offering_count
+        +Map~Address,bool~ issuers
+        +Map~Address,bool~ investors
+    }
+
+    class Offering {
+        +u32 id
+        +Address issuer
+        +String name
+        +String symbol
         +i128 unit_price
         +i128 target_units
         +i128 sold_units
         +i128 revenue_per_unit_scaled
         +bool paused
+        +i128 raised
+        +i128 available
+        +i128 allocated
     }
 
-    class InvestorPosition {
-        +bool approved
+    class Position {
         +i128 units
         +i128 revenue_checkpoint_scaled
-        +i128 claimable_usdc
+        +i128 claimable
     }
 
     class RevenueEvent {
+        +u32 offering_id
         +u64 event_id
-        +i128 amount_usdc
-        +u64 ledger_or_timestamp
         +bool processed
     }
 
-    Offering "1" --> "many" InvestorPosition : positions
-    Offering "1" --> "many" RevenueEvent : processed events
+    Platform "1" --> "many" Offering : offerings
+    Offering "1" --> "many" Position : Position(offering_id, investor)
+    Offering "1" --> "many" RevenueEvent : RevenueEvent(offering_id, event_id)
 ```
+
+Montos en unidades atómicas de 7 decimales (1 USDC = `10000000`). El almacenamiento extiende su TTL en cada operación para que el estado no se archive durante la demo.
 
 ## 6. Escenario de demo y evidencia verificable
 
+Ejecutado el 25 de septiembre de 2026 con `scripts/demo-minka-testnet.sh`; los hashes están en el README.
+
 ```mermaid
 flowchart LR
-    A["1. Inicializar oferta\nLUMI-RSN"] --> B["2. Aprobar dos wallets demo"]
-    B --> C["3. Wallet A y B invierten USDC Testnet"]
-    C --> D["4. Registrar venta demo\ncon event_id único"]
-    D --> E["5. Dashboard consume getEvents\ny muestra distribución"]
-    E --> F["6. Wallet A realiza Claim"]
-    F --> G["7. Mostrar hash de inversión,\ningreso y claim en Testnet"]
+    A["1. Desplegar contrato\n+ constructor"] --> B["2. Minka aprueba a LumiSolar,\nAna y Luis"]
+    B --> C["3. LumiSolar publica LUMI-RSN\n10 USDC × 1000 unidades"]
+    C --> D["4. Ana compra 6 y Luis 4\n(100 USDC)"]
+    D --> E["5. LumiSolar fondea y registra\n20 USDC de ingresos"]
+    E --> F["6. Ana reclama 12 USDC\n(Luis tiene 8 pendientes)"]
+    F --> G["7. Feed del dashboard muestra\ncada evento con su hash"]
 ```
 
 | Paso | Qué se verifica | Criterio de evaluación que fortalece |
 |---|---|---|
-| Inicialización | Contract ID y parámetros de la oferta | Integración técnica Stellar |
-| Inversión | USDC, autorización de wallet y unidades registradas | Funcionalidad demostrable |
-| Ingreso | `event_id` único, distribución pro-rata y evento on-chain | Realtime Systems & High-Velocity Finance |
-| Claim | Transferencia de USDC Testnet y actualización de saldo | Funcionalidad demostrable |
-| Feed RPC | Ledger, hash y eventos mostrados desde `getEvents` | Evidencia verificable |
+| Despliegue | Contract ID y constructor atómico | Integración técnica Stellar |
+| Aprobaciones | Roles separados y allowlist | Viabilidad regulatoria |
+| Publicación | Oferta con precio y unidades definidos por la empresa | Funcionalidad demostrable |
+| Inversión | Transferencia de USDC y unidades registradas | Funcionalidad demostrable |
+| Ingreso | `event_id` único, tesorería segregada y reparto pro-rata | Realtime Systems & High-Velocity Finance |
+| Claim | Transferencia de USDC Testnet y saldo en cero | Funcionalidad demostrable |
+| Feed RPC | Ledger, hash y eventos desde `getEvents` | Evidencia verificable |
 | Límite regulatorio | Disclaimer y ruta FPF regulada | Viabilidad y continuidad |
 
 ## 7. Evolución posterior al hackathon
 
 ```mermaid
 flowchart LR
-    MVP["MVP Testnet\nOferta + ingresos + claims"] --> Pilot["Piloto cerrado\ncon incubadora / red ángel"]
+    MVP["MVP Testnet\nMulti-oferta + ingresos + claims"] --> Oracle["Oráculo firmado\nPOS / facturación reemplaza el registro manual"]
+    Oracle --> Pilot["Piloto cerrado\ncon incubadora / red ángel"]
     Pilot --> Compliance["Proveedor KYC/AML\n+ administrador FPF autorizado"]
-    Compliance --> Data["Oráculos conectados a\nPOS, facturación o pasarela real"]
-    Data --> Scale["Múltiples startups,\nreporting y auditoría"]
+    Compliance --> Scale["Reporting y auditoría\npara múltiples startups"]
     Scale --> Secondary["Evaluar mercado secundario\nsolo con diseño y aprobación regulatoria"]
 ```

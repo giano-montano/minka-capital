@@ -1,0 +1,12 @@
+{
+	// Minka Capital dashboard served as static assets on Cloudflare Workers.
+	// Deploy: npm run deploy (builds with .env.production, then wrangler deploy).
+	"$schema": "../node_modules/wrangler/config-schema.json",
+	"name": "minka-capital",
+	"compatibility_date": "2026-09-01",
+	"assets": {
+		"directory": "./dist",
+		// Client-side routes (e.g. /debug) fall back to index.html.
+		"not_found_handling": "single-page-application",
+	},
+}

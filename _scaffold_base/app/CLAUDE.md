@@ -83,7 +83,8 @@ instance of the contract client and import `rpcUrl`/`networkPassphrase` from
 
 ### Routes
 
-- `/` — Home page (`src/pages/Home.tsx`)
+- `/` — Minka landing (`src/pages/Landing.tsx`, no scaffold layout)
+- `/app` — Minka dashboard (`src/pages/Home.tsx` → `MarketDashboard`)
 - `/debug` and `/debug/:contractName` — Contract debugger
   (`src/pages/Debugger.tsx`)
 

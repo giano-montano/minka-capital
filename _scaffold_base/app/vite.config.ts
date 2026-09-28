@@ -26,6 +26,8 @@ export default defineConfig({
 	},
 	envPrefix: "PUBLIC_",
 	server: {
+		// Allow sharing the dev server through an ngrok tunnel.
+		allowedHosts: [".ngrok-free.app", ".ngrok-free.dev", ".ngrok.app"],
 		proxy: {
 			"/friendbot": {
 				target: "http://localhost:8000/friendbot",
